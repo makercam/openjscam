@@ -4,7 +4,8 @@
   "description": "",
   "main": "lib/index.js",
   "scripts": {
-    "start": "tsc -w"
+    "start": "tsc -w",
+    "build": "browserify lib/index.js > bundle.js"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +13,7 @@
   "devDependencies": {
     "@types/node": "^10.12.12",
     "@types/three": "^0.93.11",
+    "browserify": "^16.2.3",
     "three": "^0.99.0",
     "typescript": "^3.2.1"
   },

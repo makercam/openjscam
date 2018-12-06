@@ -12,8 +12,14 @@ export default class Arc {
     ) {}
 
     getOutCoordForInCoord(inCoord: Coordinate) {
-        if (this.offset.x === undefined || this.offset.y === undefined || this.offset.z === undefined) {
-            throw new Error('No valid offset given for arc, required coordinates are x, y and z')
+        if (this.offset.x === undefined) {
+            this.offset.x = 0
+        }
+        if (this.offset.y === undefined) {
+            this.offset.y = 0
+        }
+        if (this.offset.z === undefined) {
+            this.offset.z = 0
         }
         if (inCoord.x === undefined || inCoord.y === undefined || inCoord.z === undefined) {
             throw new Error('No valid inCoord given for arc, required coordinates are x, y and z')

@@ -22,7 +22,7 @@ export function save(path: string): void {
     generator.save(path)
 }
 
-export function print() {
+export function log() {
     const generator = new GcodeGenerator()
     generator.generate(state.segments)
     console.log(generator.toString())
@@ -30,3 +30,33 @@ export function print() {
 
 export const IMPERIAL = IMP
 export const METRIC = MET
+
+const openjscam = {
+    METRIC: MET,
+    IMPERIAL: IMP,
+    state,
+    units,
+    tool,
+    feed,
+    speed,
+    cut,
+    icut,
+    rapid,
+    irapid,
+    dwell,
+    translate,
+    rotate,
+    arc,
+    log,
+    save
+}
+
+declare global {
+    interface Window {
+        openjscam: typeof openjscam
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.openjscam = openjscam
+}
