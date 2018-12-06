@@ -1,0 +1,7 @@
+export const METRIC = 'METRIC'
+export const IMPERIAL = 'IMPERIAL'
+export const XY = 'XY'
+export const XZ = 'XZ'
+export const YZ = 'YZ'
+export type Unit = 'METRIC' | 'IMPERIAL'
+export type Plane = 'XY' | 'XZ' | 'YZ'

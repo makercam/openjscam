@@ -1,0 +1,19 @@
+{
+  "name": "openjscam",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib/index.js",
+  "scripts": {
+    "start": "tsc -w"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^10.12.12",
+    "@types/three": "^0.93.11",
+    "three": "^0.99.0",
+    "typescript": "^3.2.1"
+  },
+  "dependencies": {}
+}
