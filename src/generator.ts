@@ -5,10 +5,12 @@ import { IMPERIAL, Unit } from './constants'
 import Coordinate from './coordinate'
 import Arc from './segments/arc'
 import Dwell from './segments/dwell'
+import Feed from './segments/feed'
 import Linear from './segments/linear'
 import Rapid from './segments/rapid'
 import Rotate from './segments/rotate'
 import Segment from './segments/segment'
+import Speed from './segments/speed'
 import Translate from './segments/translate'
 import Units from './segments/units'
 import { axes, mergeCoords, sumCoords, toRadians } from './utils'
@@ -85,9 +87,15 @@ export default class GcodeGenerator {
         } else if (segment instanceof Units) {
           this.debug(`units(${segment.units})`)
           this.units(segment.units)
+        } else if (segment instanceof Speed) {
+          this.debug(`speed(${segment.speed})`)
+          this.speed(segment.speed)
+        } else if (segment instanceof Feed) {
+          this.debug(`feed(${segment.feedRate})`)
+          this.feed(segment.feedRate)
         } else if (segment instanceof Linear) {
-          this.debug(`linear(${JSON.stringify(segment.outCoord)}, ${segment.feedRate})`)
-          this.moveLinearToCoord(segment.outCoord, segment.feedRate);
+          this.debug(`linear(${JSON.stringify(segment.outCoord)})`)
+          this.moveLinearToCoord(segment.outCoord);
           this.updateLastCoord(segment.outCoord)
         } else if (segment instanceof Rapid) {
           this.debug(`rapid(${JSON.stringify(segment.outCoord)})`)
@@ -124,7 +132,15 @@ export default class GcodeGenerator {
     }
   
     dwell(duration: number) {
-      this.write(`G04 P${duration}`);
+      this.write(`G4 P${duration}`);
+    }
+  
+    feed(feedRate: number) {
+      this.write(`F${feedRate}`);
+    }
+  
+    speed(speed: number) {
+      this.write(`M3 S${speed}`);
     }
 
     units(units: Unit) {
@@ -135,8 +151,8 @@ export default class GcodeGenerator {
       this.write(`G0${coord.x !== undefined && coord.x !== null ? ` X${coord.x}` : ''}${coord.y !== undefined && coord.y !== null ? ` Y${coord.y}` : ''}${coord.z !== undefined && coord.z !== null ? ` Z${coord.z}` : ''}`);
     }
   
-    moveLinearToCoord(coord: Coordinate, feedRate?: number): void {
-      this.write(`G1${coord.x !== undefined && coord.x !== null ? ` X${coord.x}` : ''}${coord.y !== undefined && coord.y !== null ? ` Y${coord.y}` : ''}${coord.z !== undefined && coord.z !== null ? ` Z${coord.z}` : ''}${feedRate ? ` F${feedRate}` : ''}`);
+    moveLinearToCoord(coord: Coordinate): void {
+      this.write(`G1${coord.x !== undefined && coord.x !== null ? ` X${coord.x}` : ''}${coord.y !== undefined && coord.y !== null ? ` Y${coord.y}` : ''}${coord.z !== undefined && coord.z !== null ? ` Z${coord.z}` : ''}`);
     }
 
     arc(arc: Arc) {
@@ -147,7 +163,7 @@ export default class GcodeGenerator {
       }
       const i = Math.round((centerCoord.x - this.lastCoord.x) * 10000) / 10000
       const j = Math.round((centerCoord.y - this.lastCoord.y) * 10000) / 10000
-      this.write(`${arc.angle > 0 ? 'G2' : 'G3'} X${outCoord.x} Y${outCoord.y} I${i} J${j}${outCoord.z !== undefined ? ` Z${outCoord.z}` : ''}${arc.feedRate ? ` F${arc.feedRate}` : ''}`)
+      this.write(`${arc.angle > 0 ? 'G2' : 'G3'} X${outCoord.x} Y${outCoord.y} I${i} J${j}${outCoord.z !== undefined ? ` Z${outCoord.z}` : ''}`)
     }
   
     save(path: string) {

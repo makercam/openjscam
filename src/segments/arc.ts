@@ -7,8 +7,7 @@ export default class Arc {
     constructor(
         public offset: Coordinate,
         public angle: number,
-        public plane: Plane,
-        public feedRate: number
+        public plane: Plane
     ) {}
 
     getOutCoordForInCoord(inCoord: Coordinate) {

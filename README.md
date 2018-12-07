@@ -76,7 +76,7 @@ units(METRIC)
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
 G21
@@ -108,11 +108,15 @@ feed(200)
 log()
 ```
 
+**output**
+
+```gcode
+F200
+```
+
 ### speed(speed: number)
 
 Set the spindle speed (in RPM)
-
-**NOT IMPLEMENTED YET**
 
 #### example
 
@@ -122,22 +126,28 @@ speed(25000)
 log()
 ```
 
+**output**
+
+```gcode
+M3 S25000
+```
+
 ### dwell(duration: number)
 
-Pause for given duration, duration is given in milliseconds
+Pause for given duration, duration is given in seconds
 
 #### example
 
 ```js
 const { dwell, log } = require('openjscad')
-dwell(500)
+dwell(0.5)
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
-G04 P500
+G4 P0.5
 ```
 
 ### cut(coordinate: Coordinate, incremental: boolean = false)
@@ -153,12 +163,12 @@ cut({ x: 10, y: 10 })
 log()
 ```
 
-**OUTPUT**
+**output**
 
 Note that the feedrate will be set using our previous call to `feed(200)`, when no feedrate is set yet, an error will be thrown
 
 ```gcode
-G1 X10 Y10 F200
+G1 X10 Y10
 ```
 
 ### icut(offset: Coordinate, incremental: boolean = true)
@@ -175,12 +185,12 @@ icut({ x: 10, y: 10 })
 log()
 ```
 
-**OUTPUT**
+**output**
 
 Note that we assumed the last point was X10 Y10 from the previous example.
 
 ```gcode
-G1 X20 Y20 F200
+G1 X20 Y20
 ```
 
 ### rapid(coordinate: Coordinate, incremental: boolean = false)
@@ -196,7 +206,7 @@ rapid({ x: 10, y: 10 })
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
 G0 X10 Y10
@@ -216,7 +226,7 @@ irapid({ x: 10, y: 10 })
 log()
 ```
 
-**OUTPUT**
+**output**
 
 Note that we assumed the last point was X10 Y10 from the previous example.
 
@@ -236,12 +246,12 @@ arc({ x: 10 }, 180)
 log()
 ```
 
-**OUTPUT**
+**output**
 
 Note that we assumed the last point was X0 Y0
 
 ```gcode
-G2 X20 Y0 I10 J0 Z0 F200
+G2 X20 Y0 I10 J0 Z0
 ```
 
 ### translate(offset: Coordinate, cb: Function)
@@ -258,10 +268,10 @@ translate({ x: 100, y: 50 }, function () {
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
-G1 X110 Y60 F200
+G1 X110 Y60
 ```
 
 ### rotate(angle: number, cb: Function)
@@ -278,10 +288,10 @@ rotate(45, function () {
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
-G1 X14.142 Y0 Z0 F200
+G1 X14.142 Y0 Z0
 ```
 
 ### log()
@@ -296,10 +306,10 @@ cut({ x: 10, y: 10 })
 log()
 ```
 
-**OUTPUT**
+**output**
 
 ```gcode
-G1 X10 Y10 F200
+G1 X10 Y10
 ```
 
 ### save(path: string)
@@ -312,4 +322,17 @@ Save the G-Code to a file (only works in Node.JS)
 const { cut, save } = require('openjscad')
 cut({ x: 10, y: 10 })
 save('/path/to/gcode/file.gcode')
+```
+
+### gcode()
+
+Returns the G-Code as an array of strings (lines)
+
+#### example
+
+```js
+const { cut, gcode } = require('openjscad')
+cut({ x: 10, y: 10 })
+var code = gcode()
+// do something with the gcode
 ```

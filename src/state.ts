@@ -2,10 +2,12 @@ import { Plane, Unit, XZ } from './constants'
 import Coordinate from './coordinate'
 import Arc from './segments/arc'
 import Dwell from './segments/dwell'
+import Feed from './segments/feed'
 import Linear from './segments/linear'
 import Rapid from './segments/rapid'
 import Rotate from './segments/rotate'
 import Segment from './segments/segment'
+import Speed from './segments/speed'
 import Translate from './segments/translate'
 import Units from './segments/units'
 
@@ -27,17 +29,19 @@ export default class State {
 
     setFeedRate(feedRate: number) {
         this.feedRate = feedRate
+        this.segments.push(new Feed(feedRate))
     }
 
     setSpeed(speed: number) {
         this.speed = speed
+        this.segments.push(new Speed(speed))
     }
 
     cut(coordinate: Coordinate) {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut')
         }
-        this.segments.push(new Linear(coordinate, this.feedRate))
+        this.segments.push(new Linear(coordinate))
     }
 
     rapid(coordinate: Coordinate) {
@@ -48,7 +52,7 @@ export default class State {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut')
         }
-        this.segments.push(new Linear(coordinate, this.feedRate, true))
+        this.segments.push(new Linear(coordinate, true))
     }
 
     irapid(coordinate: Coordinate) {
@@ -63,7 +67,7 @@ export default class State {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut')
         }
-        this.segments.push(new Arc(offset, angle, plane, this.feedRate))
+        this.segments.push(new Arc(offset, angle, plane))
     }
 
     translate(offset: Coordinate, cb = () => {}) {

@@ -28,6 +28,12 @@ export function log() {
     console.log(generator.toString())
 }
 
+export function gcode() {
+    const generator = new GcodeGenerator()
+    generator.generate(state.segments)
+    return generator.gcode
+}
+
 export const IMPERIAL = IMP
 export const METRIC = MET
 
@@ -48,7 +54,8 @@ const openjscam = {
     rotate,
     arc,
     log,
-    save
+    save,
+    gcode
 }
 
 declare global {
