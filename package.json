@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "scripts": {
     "start": "tsc -w",
-    "build": "browserify lib/index.js > bundle.js"
+    "build": "rm -rf lib && (tsc || exit 0) && browserify lib/index.js > bundle.js"
   },
   "keywords": [],
   "author": "",

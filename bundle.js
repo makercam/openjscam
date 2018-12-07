@@ -26,9 +26,11 @@ var THREE = __importStar(require("three"));
 var constants_1 = require("./constants");
 var arc_1 = __importDefault(require("./segments/arc"));
 var dwell_1 = __importDefault(require("./segments/dwell"));
+var feed_1 = __importDefault(require("./segments/feed"));
 var linear_1 = __importDefault(require("./segments/linear"));
 var rapid_1 = __importDefault(require("./segments/rapid"));
 var rotate_1 = __importDefault(require("./segments/rotate"));
+var speed_1 = __importDefault(require("./segments/speed"));
 var translate_1 = __importDefault(require("./segments/translate"));
 var units_1 = __importDefault(require("./segments/units"));
 var utils_1 = require("./utils");
@@ -110,9 +112,17 @@ var GcodeGenerator = /** @class */ (function () {
                 this.debug("units(" + segment.units + ")");
                 this.units(segment.units);
             }
+            else if (segment instanceof speed_1.default) {
+                this.debug("speed(" + segment.speed + ")");
+                this.speed(segment.speed);
+            }
+            else if (segment instanceof feed_1.default) {
+                this.debug("feed(" + segment.feedRate + ")");
+                this.feed(segment.feedRate);
+            }
             else if (segment instanceof linear_1.default) {
-                this.debug("linear(" + JSON.stringify(segment.outCoord) + ", " + segment.feedRate + ")");
-                this.moveLinearToCoord(segment.outCoord, segment.feedRate);
+                this.debug("linear(" + JSON.stringify(segment.outCoord) + ")");
+                this.moveLinearToCoord(segment.outCoord);
                 this.updateLastCoord(segment.outCoord);
             }
             else if (segment instanceof rapid_1.default) {
@@ -149,7 +159,13 @@ var GcodeGenerator = /** @class */ (function () {
         this.write("G1 Z" + height);
     };
     GcodeGenerator.prototype.dwell = function (duration) {
-        this.write("G04 P" + duration);
+        this.write("G4 P" + duration);
+    };
+    GcodeGenerator.prototype.feed = function (feedRate) {
+        this.write("F" + feedRate);
+    };
+    GcodeGenerator.prototype.speed = function (speed) {
+        this.write("M3 S" + speed);
     };
     GcodeGenerator.prototype.units = function (units) {
         this.write(units === constants_1.IMPERIAL ? 'G20' : 'G21');
@@ -157,8 +173,8 @@ var GcodeGenerator = /** @class */ (function () {
     GcodeGenerator.prototype.moveRapidToCoord = function (coord) {
         this.write("G0" + (coord.x !== undefined && coord.x !== null ? " X" + coord.x : '') + (coord.y !== undefined && coord.y !== null ? " Y" + coord.y : '') + (coord.z !== undefined && coord.z !== null ? " Z" + coord.z : ''));
     };
-    GcodeGenerator.prototype.moveLinearToCoord = function (coord, feedRate) {
-        this.write("G1" + (coord.x !== undefined && coord.x !== null ? " X" + coord.x : '') + (coord.y !== undefined && coord.y !== null ? " Y" + coord.y : '') + (coord.z !== undefined && coord.z !== null ? " Z" + coord.z : '') + (feedRate ? " F" + feedRate : ''));
+    GcodeGenerator.prototype.moveLinearToCoord = function (coord) {
+        this.write("G1" + (coord.x !== undefined && coord.x !== null ? " X" + coord.x : '') + (coord.y !== undefined && coord.y !== null ? " Y" + coord.y : '') + (coord.z !== undefined && coord.z !== null ? " Z" + coord.z : ''));
     };
     GcodeGenerator.prototype.arc = function (arc) {
         var outCoord = arc.getOutCoordForInCoord(this.lastCoord);
@@ -168,7 +184,7 @@ var GcodeGenerator = /** @class */ (function () {
         };
         var i = Math.round((centerCoord.x - this.lastCoord.x) * 10000) / 10000;
         var j = Math.round((centerCoord.y - this.lastCoord.y) * 10000) / 10000;
-        this.write((arc.angle > 0 ? 'G2' : 'G3') + " X" + outCoord.x + " Y" + outCoord.y + " I" + i + " J" + j + (outCoord.z !== undefined ? " Z" + outCoord.z : '') + (arc.feedRate ? " F" + arc.feedRate : ''));
+        this.write((arc.angle > 0 ? 'G2' : 'G3') + " X" + outCoord.x + " Y" + outCoord.y + " I" + i + " J" + j + (outCoord.z !== undefined ? " Z" + outCoord.z : ''));
     };
     GcodeGenerator.prototype.save = function (path) {
         fs_1.default.writeFileSync(path, this.toString());
@@ -181,7 +197,7 @@ var GcodeGenerator = /** @class */ (function () {
 exports.default = GcodeGenerator;
 
 }).call(this,require('_process'))
-},{"./constants":1,"./segments/arc":4,"./segments/dwell":5,"./segments/linear":6,"./segments/rapid":7,"./segments/rotate":8,"./segments/translate":10,"./segments/units":11,"./utils":13,"_process":15,"fs":14,"three":16}],3:[function(require,module,exports){
+},{"./constants":1,"./segments/arc":4,"./segments/dwell":5,"./segments/feed":6,"./segments/linear":7,"./segments/rapid":8,"./segments/rotate":9,"./segments/speed":11,"./segments/translate":12,"./segments/units":13,"./utils":15,"_process":17,"fs":16,"three":18}],3:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -215,6 +231,12 @@ function log() {
     console.log(generator.toString());
 }
 exports.log = log;
+function gcode() {
+    var generator = new generator_1.default();
+    generator.generate(exports.state.segments);
+    return generator.gcode;
+}
+exports.gcode = gcode;
 exports.IMPERIAL = constants_1.IMPERIAL;
 exports.METRIC = constants_1.METRIC;
 var openjscam = {
@@ -234,13 +256,14 @@ var openjscam = {
     rotate: exports.rotate,
     arc: exports.arc,
     log: log,
-    save: save
+    save: save,
+    gcode: gcode
 };
 if (typeof window !== 'undefined') {
     window.openjscam = openjscam;
 }
 
-},{"./constants":1,"./generator":2,"./state":12}],4:[function(require,module,exports){
+},{"./constants":1,"./generator":2,"./state":14}],4:[function(require,module,exports){
 "use strict";
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
@@ -252,11 +275,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var THREE = __importStar(require("three"));
 var Arc = /** @class */ (function () {
-    function Arc(offset, angle, plane, feedRate) {
+    function Arc(offset, angle, plane) {
         this.offset = offset;
         this.angle = angle;
         this.plane = plane;
-        this.feedRate = feedRate;
     }
     Arc.prototype.getOutCoordForInCoord = function (inCoord) {
         if (this.offset.x === undefined) {
@@ -309,7 +331,7 @@ var Arc = /** @class */ (function () {
 }());
 exports.default = Arc;
 
-},{"three":16}],5:[function(require,module,exports){
+},{"three":18}],5:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -340,7 +362,38 @@ var Dwell = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Dwell;
 
-},{"./segment":9}],6:[function(require,module,exports){
+},{"./segment":10}],6:[function(require,module,exports){
+"use strict";
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var segment_1 = __importDefault(require("./segment"));
+var Feed = /** @class */ (function (_super) {
+    __extends(Feed, _super);
+    function Feed(feedRate) {
+        var _this = _super.call(this) || this;
+        _this.feedRate = feedRate;
+        return _this;
+    }
+    return Feed;
+}(segment_1.default));
+exports.default = Feed;
+
+},{"./segment":10}],7:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -362,11 +415,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var segment_1 = __importDefault(require("./segment"));
 var Linear = /** @class */ (function (_super) {
     __extends(Linear, _super);
-    function Linear(outCoord, feedRate, incremental) {
+    function Linear(outCoord, incremental) {
         if (incremental === void 0) { incremental = false; }
         var _this = _super.call(this) || this;
         _this.outCoord = outCoord;
-        _this.feedRate = feedRate;
         _this.incremental = incremental;
         return _this;
     }
@@ -374,7 +426,7 @@ var Linear = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Linear;
 
-},{"./segment":9}],7:[function(require,module,exports){
+},{"./segment":10}],8:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -407,7 +459,7 @@ var Rapid = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Rapid;
 
-},{"./segment":9}],8:[function(require,module,exports){
+},{"./segment":10}],9:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -439,7 +491,7 @@ var Rotate = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Rotate;
 
-},{"./segment":9}],9:[function(require,module,exports){
+},{"./segment":10}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var Segment = /** @class */ (function () {
@@ -449,7 +501,38 @@ var Segment = /** @class */ (function () {
 }());
 exports.default = Segment;
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
+"use strict";
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var segment_1 = __importDefault(require("./segment"));
+var Speed = /** @class */ (function (_super) {
+    __extends(Speed, _super);
+    function Speed(speed) {
+        var _this = _super.call(this) || this;
+        _this.speed = speed;
+        return _this;
+    }
+    return Speed;
+}(segment_1.default));
+exports.default = Speed;
+
+},{"./segment":10}],12:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -481,7 +564,7 @@ var Translate = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Translate;
 
-},{"./segment":9}],11:[function(require,module,exports){
+},{"./segment":10}],13:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
@@ -512,7 +595,7 @@ var Units = /** @class */ (function (_super) {
 }(segment_1.default));
 exports.default = Units;
 
-},{"./segment":9}],12:[function(require,module,exports){
+},{"./segment":10}],14:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -521,9 +604,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var constants_1 = require("./constants");
 var arc_1 = __importDefault(require("./segments/arc"));
 var dwell_1 = __importDefault(require("./segments/dwell"));
+var feed_1 = __importDefault(require("./segments/feed"));
 var linear_1 = __importDefault(require("./segments/linear"));
 var rapid_1 = __importDefault(require("./segments/rapid"));
 var rotate_1 = __importDefault(require("./segments/rotate"));
+var speed_1 = __importDefault(require("./segments/speed"));
 var translate_1 = __importDefault(require("./segments/translate"));
 var units_1 = __importDefault(require("./segments/units"));
 var State = /** @class */ (function () {
@@ -539,15 +624,17 @@ var State = /** @class */ (function () {
     };
     State.prototype.setFeedRate = function (feedRate) {
         this.feedRate = feedRate;
+        this.segments.push(new feed_1.default(feedRate));
     };
     State.prototype.setSpeed = function (speed) {
         this.speed = speed;
+        this.segments.push(new speed_1.default(speed));
     };
     State.prototype.cut = function (coordinate) {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        this.segments.push(new linear_1.default(coordinate, this.feedRate));
+        this.segments.push(new linear_1.default(coordinate));
     };
     State.prototype.rapid = function (coordinate) {
         this.segments.push(new rapid_1.default(coordinate));
@@ -556,7 +643,7 @@ var State = /** @class */ (function () {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        this.segments.push(new linear_1.default(coordinate, this.feedRate, true));
+        this.segments.push(new linear_1.default(coordinate, true));
     };
     State.prototype.irapid = function (coordinate) {
         this.segments.push(new rapid_1.default(coordinate, true));
@@ -569,7 +656,7 @@ var State = /** @class */ (function () {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        this.segments.push(new arc_1.default(offset, angle, plane, this.feedRate));
+        this.segments.push(new arc_1.default(offset, angle, plane));
     };
     State.prototype.translate = function (offset, cb) {
         if (cb === void 0) { cb = function () { }; }
@@ -593,7 +680,7 @@ var State = /** @class */ (function () {
 }());
 exports.default = State;
 
-},{"./constants":1,"./segments/arc":4,"./segments/dwell":5,"./segments/linear":6,"./segments/rapid":7,"./segments/rotate":8,"./segments/translate":10,"./segments/units":11}],13:[function(require,module,exports){
+},{"./constants":1,"./segments/arc":4,"./segments/dwell":5,"./segments/feed":6,"./segments/linear":7,"./segments/rapid":8,"./segments/rotate":9,"./segments/speed":11,"./segments/translate":12,"./segments/units":13}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.axes = ['x', 'y', 'z', 'a', 'b', 'c', 'u', 'v', 'w'];
@@ -641,9 +728,9 @@ function mergeCoords(coord1, coord2) {
 }
 exports.mergeCoords = mergeCoords;
 
-},{}],14:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 
-},{}],15:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -829,7 +916,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],16:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
