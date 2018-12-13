@@ -15,7 +15,7 @@ It puts all the openjscam functions on the `window.openjscam` property, this is 
 
 ## usage
 
-You can add openjscam as a dependency to you project, then import the functions you need, or make all of them available in your scope by using the `with (openjscad) {}` operator
+You can add openjscam as a dependency to you project, then import the functions you need, or make all of them available in your scope by using the `with (openjscam) {}` operator
 
 
 Example using `require`:
@@ -25,7 +25,7 @@ const {
     cut,
     icut,
     log
-} = require('openjscad')
+} = require('openjscam')
 
 const zSafe = 3
 const zCut = -1.5
@@ -41,12 +41,12 @@ rapid({ z: zSafe })
 log()
 ```
 
-Example using `with (openjscad) {}`
+Example using `with (openjscam) {}`
 ```js
-const openjscad = require('openjscad')
+const openjscam = require('openjscam')
 
-// by using `with`, all properties of the `openjscad` object are automatically available in it's scope.
-with (openjscad) {
+// by using `with`, all properties of the `openjscam` object are automatically available in it's scope.
+with (openjscam) {
     const zSafe = 3
     const zCut = -1.5
 
@@ -71,7 +71,7 @@ Set the units (Will output `G21` for METRIC or `G20` for IMPERIAL)
 #### example
 
 ```js
-const { units, METRIC, log } = require('openjscad')
+const { units, METRIC, log } = require('openjscam')
 units(METRIC)
 log()
 ```
@@ -91,7 +91,7 @@ Set the tool to use (usefull when having a tool changer)
 #### example
 
 ```js
-const { tool, log } = require('openjscad')
+const { tool, log } = require('openjscam')
 tool(1)
 log()
 ```
@@ -103,7 +103,7 @@ Set the feedrate
 #### example
 
 ```js
-const { feed, log } = require('openjscad')
+const { feed, log } = require('openjscam')
 feed(200)
 log()
 ```
@@ -121,7 +121,7 @@ Set the spindle speed (in RPM)
 #### example
 
 ```js
-const { speed, log } = require('openjscad')
+const { speed, log } = require('openjscam')
 speed(25000)
 log()
 ```
@@ -139,7 +139,7 @@ Pause for given duration, duration is given in seconds
 #### example
 
 ```js
-const { dwell, log } = require('openjscad')
+const { dwell, log } = require('openjscam')
 dwell(0.5)
 log()
 ```
@@ -158,7 +158,7 @@ Provide a coordinate for at least one of the axes.
 #### example
 
 ```js
-const { cut, log } = require('openjscad')
+const { cut, log } = require('openjscam')
 cut({ x: 10, y: 10 })
 log()
 ```
@@ -180,7 +180,7 @@ Provide a coordinate for at least one of the axes.
 #### example
 
 ```js
-const { icut, log } = require('openjscad')
+const { icut, log } = require('openjscam')
 icut({ x: 10, y: 10 })
 log()
 ```
@@ -201,7 +201,7 @@ Provide a coordinate for at least one of the axes.
 #### example
 
 ```js
-const { rapid, log } = require('openjscad')
+const { rapid, log } = require('openjscam')
 rapid({ x: 10, y: 10 })
 log()
 ```
@@ -221,7 +221,7 @@ Provide a coordinate for at least one of the axes.
 #### example
 
 ```js
-const { irapid, log } = require('openjscad')
+const { irapid, log } = require('openjscam')
 irapid({ x: 10, y: 10 })
 log()
 ```
@@ -241,7 +241,7 @@ Create an arc from with a given offset from the last point and an angle in degre
 #### example
 
 ```js
-const { arc, log } = require('openjscad')
+const { arc, log } = require('openjscam')
 arc({ x: 10 }, 180)
 log()
 ```
@@ -261,7 +261,7 @@ Translate (move) child operations by given offset
 #### example
 
 ```js
-const { translate, cut, log } = require('openjscad')
+const { translate, cut, log } = require('openjscam')
 translate({ x: 100, y: 50 }, function () {
     cut({ x: 10, y: 10 })
 })
@@ -281,7 +281,7 @@ Rotate child operations by given angle in degrees
 #### example
 
 ```js
-const { rotate, cut, log } = require('openjscad')
+const { rotate, cut, log } = require('openjscam')
 rotate(45, function () {
     cut({ x: 10, y: 10 })
 })
@@ -301,7 +301,7 @@ Log the G-Code to the console
 #### example
 
 ```js
-const { cut, log } = require('openjscad')
+const { cut, log } = require('openjscam')
 cut({ x: 10, y: 10 })
 log()
 ```
@@ -319,7 +319,7 @@ Save the G-Code to a file (only works in Node.JS)
 #### example
 
 ```js
-const { cut, save } = require('openjscad')
+const { cut, save } = require('openjscam')
 cut({ x: 10, y: 10 })
 save('/path/to/gcode/file.gcode')
 ```
@@ -331,7 +331,7 @@ Returns the G-Code as an array of strings (lines)
 #### example
 
 ```js
-const { cut, gcode } = require('openjscad')
+const { cut, gcode } = require('openjscam')
 cut({ x: 10, y: 10 })
 var code = gcode()
 // do something with the gcode
