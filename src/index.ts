@@ -1,4 +1,6 @@
 /// <reference path="./index.d.ts" />
+import 'three'
+
 import GCode from './postprocessors/gcode'
 import State from './state'
 

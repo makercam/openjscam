@@ -1,4 +1,5 @@
 /// <reference path="../src/index.d.ts" />
+import 'three';
 import State from './state';
 export { IMPERIAL, METRIC } from './constants';
 export declare const state: State;
