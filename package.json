@@ -1,6 +1,6 @@
 {
   "name": "@makercam/openjscam",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -14,14 +14,10 @@
     "@types/node": "^10.12.12",
     "@types/three": "^0.93.11",
     "browserify": "^16.2.3",
-    "makerjs": "^0.13.0",
-    "shape2path": "^2.0.3",
     "tap": "^12.1.0",
-    "three": "^0.99.0",
     "typescript": "^3.2.1"
   },
   "dependencies": {
-    "@jscad/scad-api": "^0.5.1",
-    "sax": "^1.2.4"
+    "three": "^0.99.0"
   }
 }
