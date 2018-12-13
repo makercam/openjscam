@@ -1,16 +1,16 @@
 import * as THREE from 'three'
 
-import { Plane } from '../constants'
+import { Plane, XZ } from '../constants'
 import Coordinate from '../coordinate'
 
 export default class Arc {
     constructor(
         public offset: Coordinate,
         public angle: number,
-        public plane: Plane
+        public plane: Plane = XZ
     ) {}
 
-    getOutCoordForInCoord(inCoord: Coordinate) {
+    getCurveForInCoord(inCoord: Coordinate) {
         if (this.offset.x === undefined) {
             this.offset.x = 0
         }
@@ -41,7 +41,7 @@ export default class Arc {
         var degreesEnd = 180 - this.angle;
         var radiansStart = (degreesStart * Math.PI) / 180;
         var radiansEnd = ((degreesEnd) * Math.PI) / 180;
-        const curve = new THREE.EllipseCurve(
+        return new THREE.EllipseCurve(
             centerCoord.x,
             centerCoord.y,
             radius,
@@ -51,28 +51,22 @@ export default class Arc {
             this.angle > 0,
             angleRadians
         )
-        // curve.getPoints(100).forEach(p => {
-        //     const pEl = document.createElement('div')
-        //     pEl.style.width = '3px';
-        //     pEl.style.height = '3px';
-        //     pEl.style.position = 'absolute'
-        //     pEl.style.bottom = (p.y * 10) + 400 + 'px'
-        //     pEl.style.left = (p.x * 10) + 'px'
-        //     pEl.style.background = 'black'
-        //     document.body.appendChild(pEl)
-        // })
+    }
+
+    getOutCoordForInCoord(inCoord: Coordinate) {
+        const curve = this.getCurveForInCoord(inCoord)
         if (this.angle === 360) {
             return {
                 x: inCoord.x,
                 y: inCoord.y,
-                z: inCoord.z + this.offset.z
+                z: inCoord.z! + (this.offset.z || 0)
             }
         }
         const outCoord = curve.getPoint(1)
         return {
-            x: Math.round(outCoord.x * 10000) / 10000,
-            y: Math.round(outCoord.y * 10000) / 10000,
-            z: inCoord.z + this.offset.z
+            x: outCoord.x,
+            y: outCoord.y,
+            z: inCoord.z! + (this.offset.z || 0)
         }
     }
 }

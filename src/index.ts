@@ -1,69 +1,28 @@
-import { IMPERIAL as IMP, METRIC as MET } from './constants'
-import GcodeGenerator from './generator'
+/// <reference path="./index.d.ts" />
+import GCode from './postprocessors/gcode'
 import State from './state'
 
-export const state = new State()
-export const units: typeof State.prototype.setUnits = state.setUnits.bind(state)
-export const tool: typeof State.prototype.setTool = state.setTool.bind(state)
-export const feed: typeof State.prototype.setFeedRate = state.setFeedRate.bind(state)
-export const speed: typeof State.prototype.setSpeed = state.setSpeed.bind(state)
-export const cut: typeof State.prototype.cut = state.cut.bind(state)
-export const icut: typeof State.prototype.icut = state.icut.bind(state)
-export const rapid: typeof State.prototype.rapid = state.rapid.bind(state)
-export const irapid: typeof State.prototype.irapid = state.irapid.bind(state)
-export const dwell: typeof State.prototype.dwell = state.dwell.bind(state)
-export const translate: typeof State.prototype.translate = state.translate.bind(state)
-export const rotate: typeof State.prototype.rotate = state.rotate.bind(state)
-export const arc: typeof State.prototype.arc = state.arc.bind(state)
+export { IMPERIAL, METRIC } from './constants'
 
-export function save(path: string): void {
-    const generator = new GcodeGenerator()
-    generator.generate(state.segments)
-    generator.save(path)
-}
-
-export function log() {
-    const generator = new GcodeGenerator()
-    generator.generate(state.segments)
-    console.log(generator.toString())
-}
-
+const postProcessor = new GCode()
+export const state = new State(postProcessor)
+export const units = state.setUnits.bind(state)
+export const tool = state.setTool.bind(state)
+export const feed = state.setFeedRate.bind(state)
+export const speed = state.setSpeed.bind(state)
+export const cut = state.cut.bind(state)
+export const icut = state.icut.bind(state)
+export const rapid = state.rapid.bind(state)
+export const irapid = state.irapid.bind(state)
+export const dwell = state.dwell.bind(state)
+export const translate = state.translate.bind(state)
+export const rotate = state.rotate.bind(state)
+export const scale = state.scale.bind(state)
+export const arc = state.arc.bind(state)
+export const ellipse = state.ellipse.bind(state)
+export const save = state.save.bind(state)
+export const log = state.log.bind(state)
+export const reset = state.reset.bind(state)
 export function gcode() {
-    const generator = new GcodeGenerator()
-    generator.generate(state.segments)
-    return generator.gcode
-}
-
-export const IMPERIAL = IMP
-export const METRIC = MET
-
-const openjscam = {
-    METRIC: MET,
-    IMPERIAL: IMP,
-    state,
-    units,
-    tool,
-    feed,
-    speed,
-    cut,
-    icut,
-    rapid,
-    irapid,
-    dwell,
-    translate,
-    rotate,
-    arc,
-    log,
-    save,
-    gcode
-}
-
-declare global {
-    interface Window {
-        openjscam: typeof openjscam
-    }
-}
-
-if (typeof window !== 'undefined') {
-    window.openjscam = openjscam
+    return state.gcode
 }

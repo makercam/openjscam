@@ -1,0 +1,22 @@
+/// <reference path="../src/index.d.ts" />
+import State from './state';
+export { IMPERIAL, METRIC } from './constants';
+export declare const state: State;
+export declare const units: (units: import("./constants").Unit) => void;
+export declare const tool: (tool: number) => void;
+export declare const feed: (feedRate: number) => void;
+export declare const speed: (speed: number) => void;
+export declare const cut: (coordinate: import("./coordinate").default) => void;
+export declare const icut: (offset: import("./coordinate").default) => void;
+export declare const rapid: (coordinate: import("./coordinate").default) => void;
+export declare const irapid: (offset: import("./coordinate").default) => void;
+export declare const dwell: (duration: number) => void;
+export declare const translate: (offset: import("./coordinate").default, cb?: (() => void) | undefined) => void;
+export declare const rotate: (angle: number, cb?: (() => void) | undefined) => void;
+export declare const scale: (scales: import("./coordinate").default, cb?: (() => void) | undefined) => void;
+export declare const arc: (offset: import("./coordinate").default, angle: number, plane?: "XY" | "XZ" | "YZ" | undefined) => void;
+export declare const ellipse: (radiusX: number, radiusY: number, offsetZ: number | undefined, angle: number, angleStart?: number | undefined, points?: number | undefined, plane?: "XY" | "XZ" | "YZ" | undefined) => void;
+export declare const save: (path: string) => void;
+export declare const log: () => void;
+export declare const reset: () => void;
+export declare function gcode(): string[][];
