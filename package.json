@@ -3,6 +3,7 @@
   "version": "0.0.3",
   "description": "",
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "scripts": {
     "start": "tsc -w",
     "build": "rm -rf lib && (tsc || exit 0) && browserify lib/index.js > bundle.js"

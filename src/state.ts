@@ -11,6 +11,7 @@ import Scale from './transformations/scale'
 import Transformation from './transformations/transformation'
 import Translate from './transformations/translate'
 import { axes, mergeCoords, roundCoord, sumCoords, toRadians } from './utils'
+import Arc2 from './segments/arc2';
 
 export default class State {
     constructor(public postProcessor: PostProcessor) {}
@@ -147,7 +148,7 @@ export default class State {
         if (cleanedCoord === null) return
         this.shapes.push(new THREE.LineCurve3(
             new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z),
-            new THREE.Vector3(transformedCoord.x, transformedCoord.y, transformedCoord.z)
+            new THREE.Vector3(transformedCoord.x || this.lastCoord.x, transformedCoord.y || this.lastCoord.y, transformedCoord.z || this.lastCoord.z)
         ))
         this.write(this.postProcessor.cut(cleanedCoord))
         this.updateLastCoord(transformedCoord)
@@ -162,10 +163,9 @@ export default class State {
         const transformedOffset = roundCoord(this.applyTransformations(absOffset), 10000)
         const cleanedCoord = this.removeRedundantCoords(transformedOffset)
         if (cleanedCoord === null) return
-        // const destinationCoord = sumCoords(this.lastCoord, transformedOffset)
         this.shapes.push(new THREE.LineCurve3(
             new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z),
-            new THREE.Vector3(transformedOffset.x, transformedOffset.y, transformedOffset.z)
+            new THREE.Vector3(transformedOffset.x || this.lastCoord.x, transformedOffset.y || this.lastCoord.y, transformedOffset.z || this.lastCoord.z)
         ))
         this.write(this.postProcessor.cut(cleanedCoord))
         this.updateLastCoord(transformedOffset)
@@ -176,10 +176,12 @@ export default class State {
         const transformedCoord = roundCoord(this.applyTransformations(coordinate), 10000)
         const cleanedCoord = this.removeRedundantCoords(transformedCoord)
         if (cleanedCoord === null) return
-        this.shapes.push(new THREE.LineCurve3(
+        const shape = new THREE.LineCurve3(
             new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z),
-            new THREE.Vector3(transformedCoord.x, transformedCoord.y, transformedCoord.z)
-        ))
+            new THREE.Vector3(transformedCoord.x || this.lastCoord.x, transformedCoord.y || this.lastCoord.y, transformedCoord.z || this.lastCoord.z)
+        )
+        shape.isRapid = true
+        this.shapes.push(shape)
         this.write(this.postProcessor.rapid(cleanedCoord))
         this.updateLastCoord(transformedCoord)
         this.updateLastUntransformedCoord(coordinate)
@@ -190,11 +192,12 @@ export default class State {
         const transformedOffset = roundCoord(this.applyTransformations(absOffset), 10000)
         const cleanedCoord = this.removeRedundantCoords(transformedOffset)
         if (cleanedCoord === null) return
-        // const destinationCoord = sumCoords(this.lastCoord, transformedOffset)
-        this.shapes.push(new THREE.LineCurve3(
+        const shape = new THREE.LineCurve3(
             new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z),
-            new THREE.Vector3(transformedOffset.x, transformedOffset.y, transformedOffset.z)
-        ))
+            new THREE.Vector3(transformedOffset.x || this.lastCoord.x, transformedOffset.y || this.lastCoord.y, transformedOffset.z || this.lastCoord.z)
+        )
+        shape.isRapid = true
+        this.shapes.push(shape)
         this.write(this.postProcessor.rapid(cleanedCoord))
         this.updateLastCoord(transformedOffset)
         this.updateLastUntransformedCoord(absOffset)
@@ -217,6 +220,20 @@ export default class State {
         const untransformedArc = new Arc(offset, angle, plane)
         const untransformedOutCoord = untransformedArc.getOutCoordForInCoord(this.lastUntransformedCoord)
         this.updateLastUntransformedCoord(mergeCoords(this.lastUntransformedCoord, untransformedOutCoord))
+    }
+
+    radiusArc(center: Coordinate, radius: number, startAngle: number, angle: number, plane: Plane = XZ) {
+        if (!this.feedRate) {
+            throw new Error('No feedrate given, please call `feed()` before cut')
+        }
+        const arc = new Arc2(radius, startAngle, angle, plane)
+        const offset = arc.getOffset()
+        const absOffset = sumCoords(this.lastUntransformedCoord, offset)
+        const transformedOffset = this.applyTransformations(absOffset, this.transformations.filter(t => { return !(t instanceof Translate) }))
+        this.write(this.postProcessor.arc2(arc, this.lastCoord))
+        this.shapes.push(arc.getCurve())
+        this.updateLastCoord(mergeCoords(this.lastCoord, transformedOffset))
+        this.updateLastUntransformedCoord(mergeCoords(this.lastUntransformedCoord, absOffset))
     }
 
     ellipse(radiusX: number, radiusY: number, offsetZ: number = 0, angle: number, angleStart = 0, points: number = 50, plane: Plane = XZ) {

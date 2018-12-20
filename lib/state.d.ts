@@ -32,6 +32,7 @@ export default class State {
     irapid(offset: Coordinate): void;
     dwell(duration: number): void;
     arc(offset: Coordinate, angle: number, plane?: Plane): void;
+    radiusArc(center: Coordinate, radius: number, startAngle: number, angle: number, plane?: Plane): void;
     ellipse(radiusX: number, radiusY: number, offsetZ: number | undefined, angle: number, angleStart?: number, points?: number, plane?: Plane): void;
     translate(offset: Coordinate, cb?: () => void): void;
     rotate(angle: number, cb?: () => void): void;

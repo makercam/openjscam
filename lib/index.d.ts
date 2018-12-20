@@ -1,5 +1,4 @@
 /// <reference path="../src/index.d.ts" />
-import 'three';
 import State from './state';
 export { IMPERIAL, METRIC } from './constants';
 export declare const state: State;
@@ -16,8 +15,12 @@ export declare const translate: (offset: import("./coordinate").default, cb?: ((
 export declare const rotate: (angle: number, cb?: (() => void) | undefined) => void;
 export declare const scale: (scales: import("./coordinate").default, cb?: (() => void) | undefined) => void;
 export declare const arc: (offset: import("./coordinate").default, angle: number, plane?: "XY" | "XZ" | "YZ" | undefined) => void;
+export declare const radiusArc: (center: import("./coordinate").default, radius: number, startAngle: number, angle: number, plane?: "XY" | "XZ" | "YZ" | undefined) => void;
 export declare const ellipse: (radiusX: number, radiusY: number, offsetZ: number | undefined, angle: number, angleStart?: number | undefined, points?: number | undefined, plane?: "XY" | "XZ" | "YZ" | undefined) => void;
 export declare const save: (path: string) => void;
 export declare const log: () => void;
 export declare const reset: () => void;
 export declare function gcode(): string[][];
+export declare function helix(radius: number, depth: number, depthPerCut: number, zSafe: number): void;
+export declare function drill(depth: number, depthPerCut: number, zSafe: number): void;
+export declare function view(containerEl?: HTMLElement): void;
