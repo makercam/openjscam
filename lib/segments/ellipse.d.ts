@@ -1,16 +1,17 @@
 import * as THREE from 'three';
 import { Plane } from '../constants';
+import Coordinate from '../coordinate';
 export default class Ellipse {
     radiusX: number;
     radiusY: number;
     offsetZ: number;
-    angle: number;
+    angleEnd: number;
     angleStart: number;
-    points: number;
     plane: Plane;
-    constructor(radiusX: number, radiusY: number, offsetZ: number, angle: number, angleStart?: number, points?: number, plane?: Plane);
-    getCurve(): THREE.EllipseCurve;
-    getCoords(): {
+    curve: THREE.EllipseCurve;
+    constructor(radiusX: number, radiusY: number, offsetZ: number, angleEnd: number, angleStart?: number, plane?: Plane);
+    getCurveForInCoord(inCoord: Coordinate): THREE.EllipseCurve;
+    getCoords(points: number): {
         x: number;
         y: number;
         z: number;

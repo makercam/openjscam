@@ -1,6 +1,5 @@
 import { IMPERIAL, Unit } from '../constants'
 import Coordinate from '../coordinate'
-import Arc from '../segments/arc'
 import { coordToString, round } from '../utils'
 import PostProcessor from './postprocessor'
 
@@ -33,14 +32,7 @@ export default class GcodePostProcessor implements PostProcessor {
     return `G1 ${coordToString(coord)}`
   }
 
-  arc(arc: Arc, lastCoord: Coordinate) {
-    const outCoord = arc.getOutCoordForInCoord(lastCoord)
-    const centerCoord: Coordinate = {
-      x: lastCoord.x! + (arc.offset.x || 0),
-      y: lastCoord.y! + (arc.offset.y || 0),
-    }
-    const i = round(centerCoord.x! - lastCoord.x!)
-    const j = round(centerCoord.y! - lastCoord.y!)
-    return `${arc.angle > 0 ? 'G2' : 'G3'} ${coordToString(outCoord)} I${i} J${j}`
+  arc(endOffset: Coordinate, centerOffset: Coordinate, cw: boolean) {
+    return `${cw ? 'G2' : 'G3'} ${coordToString(endOffset)} I${round(centerOffset.x || 0)} J${round(centerOffset.y || 0)}`
   }
 }

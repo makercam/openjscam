@@ -9,5 +9,5 @@ export default interface PostProcessor {
     units(units: Unit): string
     rapid(coord: Coordinate): string
     cut(coord: Coordinate): string
-    arc(arc: Arc, lastCoord: Coordinate): string
+    arc(endOffset: Coordinate, centerOffset: Coordinate, cw: boolean): string
 }

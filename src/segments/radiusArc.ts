@@ -4,42 +4,41 @@ import { Plane, XZ } from '../constants'
 import Coordinate from '../coordinate'
 import { mirrorCoord } from '../utils'
 
-export default class Arc {
+export default class RadiusArc {
     curve: THREE.EllipseCurve
 
     constructor(
-        public centerOffset: Coordinate,
-        public angle: number,
+        public radius: number,
+        public startAngle: number,
+        public endAngle: number = 0,
         public plane: Plane = XZ
     ) {
-        if (centerOffset.x === undefined) {
-            centerOffset.x = 0
-        }
-        if (centerOffset.y === undefined) {
-            centerOffset.y = 0
-        }
-        if (centerOffset.z === undefined) {
-            centerOffset.z = 0
-        }
-        const fromCoord = new THREE.Vector3(0, 0, 0)
-        const toCoord = new THREE.Vector3(centerOffset.x, centerOffset.y, centerOffset.z)
-        const delta = new THREE.Vector2(centerOffset.x, centerOffset.y)
-        const radius = fromCoord.distanceTo(toCoord)
-        const angleRadians = delta.angle()
-        var degreesStart = 180;
-        var degreesEnd = 180 - angle;
+        var degreesStart = 90 - this.startAngle;
+        var degreesEnd = 90 - this.endAngle;
         var radiansStart = (degreesStart * Math.PI) / 180;
         var radiansEnd = ((degreesEnd) * Math.PI) / 180;
         this.curve = new THREE.EllipseCurve(
             0,
             0,
-            radius,
-            radius,
+            this.radius,
+            this.radius,
             radiansStart,
             radiansEnd,
-            this.angle > 0,
-            angleRadians
-        )
+            this.startAngle < this.endAngle,
+            0
+        ) 
+    }
+
+    getCurve() {
+        return this.curve
+    }
+
+    getCenterOffset() {
+        const coord = this.curve.getPoint(0)
+        return {
+            x: coord.x > 0 ? -coord.x : Math.abs(coord.x),
+            y: coord.y > 0 ? -coord.y : Math.abs(coord.y)
+        }
     }
 
     getOffset() {

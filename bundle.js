@@ -9,13 +9,23 @@ exports.YZ = 'YZ';
 
 },{}],2:[function(require,module,exports){
 "use strict";
+/// <reference path="./index.d.ts" />
+// import 'three'
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-/// <reference path="./index.d.ts" />
 const gcode_1 = __importDefault(require("./postprocessors/gcode"));
 const state_1 = __importDefault(require("./state"));
+const viewer_1 = __importDefault(require("./viewer"));
+const util = __importStar(require("./utils"));
 var constants_1 = require("./constants");
 exports.IMPERIAL = constants_1.IMPERIAL;
 exports.METRIC = constants_1.METRIC;
@@ -23,6 +33,7 @@ const postProcessor = new gcode_1.default();
 exports.state = new state_1.default(postProcessor);
 exports.units = exports.state.setUnits.bind(exports.state);
 exports.tool = exports.state.setTool.bind(exports.state);
+exports.resolution = exports.state.setResolution.bind(exports.state);
 exports.feed = exports.state.setFeedRate.bind(exports.state);
 exports.speed = exports.state.setSpeed.bind(exports.state);
 exports.cut = exports.state.cut.bind(exports.state);
@@ -30,20 +41,53 @@ exports.icut = exports.state.icut.bind(exports.state);
 exports.rapid = exports.state.rapid.bind(exports.state);
 exports.irapid = exports.state.irapid.bind(exports.state);
 exports.dwell = exports.state.dwell.bind(exports.state);
-exports.translate = exports.state.translate.bind(exports.state);
 exports.rotate = exports.state.rotate.bind(exports.state);
 exports.scale = exports.state.scale.bind(exports.state);
+exports.translate = exports.state.translate.bind(exports.state);
 exports.arc = exports.state.arc.bind(exports.state);
+exports.radiusArc = exports.state.radiusArc.bind(exports.state);
 exports.ellipse = exports.state.ellipse.bind(exports.state);
 exports.save = exports.state.save.bind(exports.state);
 exports.log = exports.state.log.bind(exports.state);
 exports.reset = exports.state.reset.bind(exports.state);
+exports.utils = util;
 function gcode() {
     return exports.state.gcode;
 }
 exports.gcode = gcode;
+function helix(radius, depth, depthPerCut, zSafe) {
+    exports.irapid({ x: -radius });
+    const totalArcs = Math.ceil(depth / depthPerCut);
+    for (var i = 0; i < totalArcs; i++) {
+        let cutDepth = depthPerCut;
+        if (i + 1 === totalArcs) {
+            cutDepth = depth - (depthPerCut * i);
+        }
+        exports.arc({ x: radius, z: -cutDepth }, 360);
+    }
+    exports.arc({ x: radius }, 360);
+    exports.rapid({ z: zSafe });
+    exports.irapid({ x: radius });
+}
+exports.helix = helix;
+function drill(depth, depthPerCut, zSafe) {
+    const totalCuts = Math.ceil(depth / depthPerCut);
+    for (var i = 1; i <= totalCuts; i++) {
+        let cutDepth = depthPerCut * i;
+        if (cutDepth > depth) {
+            cutDepth = depth;
+        }
+        exports.cut({ z: -cutDepth });
+        exports.rapid({ z: zSafe });
+    }
+}
+exports.drill = drill;
+function view(containerEl) {
+    viewer_1.default(exports.state, containerEl);
+}
+exports.view = view;
 
-},{"./constants":1,"./postprocessors/gcode":3,"./state":6}],3:[function(require,module,exports){
+},{"./constants":1,"./postprocessors/gcode":3,"./state":7,"./utils":12,"./viewer":13}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const constants_1 = require("../constants");
@@ -70,20 +114,13 @@ class GcodePostProcessor {
     cut(coord) {
         return `G1 ${utils_1.coordToString(coord)}`;
     }
-    arc(arc, lastCoord) {
-        const outCoord = arc.getOutCoordForInCoord(lastCoord);
-        const centerCoord = {
-            x: lastCoord.x + (arc.offset.x || 0),
-            y: lastCoord.y + (arc.offset.y || 0),
-        };
-        const i = utils_1.round(centerCoord.x - lastCoord.x);
-        const j = utils_1.round(centerCoord.y - lastCoord.y);
-        return `${arc.angle > 0 ? 'G2' : 'G3'} ${utils_1.coordToString(outCoord)} I${i} J${j}`;
+    arc(endOffset, centerOffset, cw) {
+        return `${cw ? 'G2' : 'G3'} ${utils_1.coordToString(endOffset)} I${utils_1.round(centerOffset.x || 0)} J${utils_1.round(centerOffset.y || 0)}`;
     }
 }
 exports.default = GcodePostProcessor;
 
-},{"../constants":1,"../utils":11}],4:[function(require,module,exports){
+},{"../constants":1,"../utils":12}],4:[function(require,module,exports){
 "use strict";
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
@@ -95,56 +132,51 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const THREE = __importStar(require("three"));
 const constants_1 = require("../constants");
+const utils_1 = require("../utils");
 class Arc {
-    constructor(offset, angle, plane = constants_1.XZ) {
-        this.offset = offset;
+    constructor(centerOffset, angle, plane = constants_1.XZ) {
+        this.centerOffset = centerOffset;
         this.angle = angle;
         this.plane = plane;
-    }
-    getCurveForInCoord(inCoord) {
-        if (this.offset.x === undefined) {
-            this.offset.x = 0;
+        if (centerOffset.x === undefined) {
+            centerOffset.x = 0;
         }
-        if (this.offset.y === undefined) {
-            this.offset.y = 0;
+        if (centerOffset.y === undefined) {
+            centerOffset.y = 0;
         }
-        if (this.offset.z === undefined) {
-            this.offset.z = 0;
+        if (centerOffset.z === undefined) {
+            centerOffset.z = 0;
         }
-        if (inCoord.x === undefined || inCoord.y === undefined || inCoord.z === undefined) {
-            throw new Error('No valid inCoord given for arc, required coordinates are x, y and z');
-        }
-        const inCoordVector = new THREE.Vector3(inCoord.x, inCoord.y, inCoord.z);
-        const centerCoord = new THREE.Vector3(inCoord.x + this.offset.x, inCoord.y + this.offset.y, inCoord.z + this.offset.z);
-        const delta = new THREE.Vector2(this.offset.x, this.offset.y);
-        const radius = inCoordVector.distanceTo(centerCoord);
+        const fromCoord = new THREE.Vector3(0, 0, 0);
+        const toCoord = new THREE.Vector3(centerOffset.x, centerOffset.y, centerOffset.z);
+        const delta = new THREE.Vector2(centerOffset.x, centerOffset.y);
+        const radius = fromCoord.distanceTo(toCoord);
         const angleRadians = delta.angle();
         var degreesStart = 180;
-        var degreesEnd = 180 - this.angle;
+        var degreesEnd = 180 - angle;
         var radiansStart = (degreesStart * Math.PI) / 180;
         var radiansEnd = ((degreesEnd) * Math.PI) / 180;
-        return new THREE.EllipseCurve(centerCoord.x, centerCoord.y, radius, radius, radiansStart, radiansEnd, this.angle > 0, angleRadians);
+        this.curve = new THREE.EllipseCurve(0, 0, radius, radius, radiansStart, radiansEnd, this.angle > 0, angleRadians);
     }
-    getOutCoordForInCoord(inCoord) {
-        const curve = this.getCurveForInCoord(inCoord);
-        if (this.angle === 360) {
-            return {
-                x: inCoord.x,
-                y: inCoord.y,
-                z: inCoord.z + (this.offset.z || 0)
-            };
-        }
-        const outCoord = curve.getPoint(1);
+    getOffset() {
+        const inCoord = this.curve.getPoint(0);
+        const outCoord = this.curve.getPoint(1);
         return {
-            x: outCoord.x,
-            y: outCoord.y,
-            z: inCoord.z + (this.offset.z || 0)
+            x: outCoord.x - inCoord.x,
+            y: outCoord.y - inCoord.y
         };
+    }
+    getCurveForInCoord(inCoord) {
+        const firstCoord = this.curve.getPoint(0);
+        const mirror = utils_1.mirrorCoord(firstCoord);
+        this.curve.aX = inCoord.x + mirror.x;
+        this.curve.aY = inCoord.y + mirror.y;
+        return this.curve;
     }
 }
 exports.default = Arc;
 
-},{"../constants":1,"three":13}],5:[function(require,module,exports){
+},{"../constants":1,"../utils":12,"three":15}],5:[function(require,module,exports){
 "use strict";
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
@@ -156,32 +188,38 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const THREE = __importStar(require("three"));
 const constants_1 = require("../constants");
+const utils_1 = require("../utils");
 class Ellipse {
-    constructor(radiusX, radiusY, offsetZ, angle, angleStart = 0, points = 64, plane = constants_1.XZ) {
+    constructor(radiusX, radiusY, offsetZ, angleEnd, angleStart = 0, points = 64, plane = constants_1.XZ) {
         this.radiusX = radiusX;
         this.radiusY = radiusY;
         this.offsetZ = offsetZ;
-        this.angle = angle;
+        this.angleEnd = angleEnd;
         this.angleStart = angleStart;
         this.points = points;
         this.plane = plane;
-    }
-    getCurve() {
-        var degreesStart = 180 - this.angleStart;
-        var degreesEnd = 180 - this.angle;
+        var degreesStart = 90 - this.angleStart;
+        var degreesEnd = 90 - this.angleEnd;
+        // console.log(this.angleStart, this.angleEnd, ',', degreesStart, degreesEnd)
         var radiansStart = (degreesStart * Math.PI) / 180;
         var radiansEnd = (degreesEnd * Math.PI) / 180;
-        return new THREE.EllipseCurve(0, 0, this.radiusX, this.radiusY, radiansStart, radiansEnd, this.angle > 0, 0);
+        this.curve = new THREE.EllipseCurve(0, 0, this.radiusX, this.radiusY, radiansStart, radiansEnd, this.angleStart < this.angleEnd, 0);
+    }
+    getCurveForInCoord(inCoord) {
+        const firstCoord = this.curve.getPoint(0);
+        const mirror = utils_1.mirrorCoord(firstCoord);
+        this.curve.aX = inCoord.x + mirror.x;
+        this.curve.aY = inCoord.y + mirror.y;
+        return this.curve;
     }
     getCoords() {
-        const curve = this.getCurve();
-        const coords = curve.getPoints(this.points);
+        const coords = this.curve.getPoints(this.points);
         const firstPoint = coords[0];
         const mapped = coords.map((coord, i) => {
             return {
                 x: coord.x - firstPoint.x,
                 y: coord.y - firstPoint.y,
-                z: (this.offsetZ / this.points)
+                z: (this.offsetZ / this.points) * i
             };
         });
         return mapped;
@@ -189,7 +227,60 @@ class Ellipse {
 }
 exports.default = Ellipse;
 
-},{"../constants":1,"three":13}],6:[function(require,module,exports){
+},{"../constants":1,"../utils":12,"three":15}],6:[function(require,module,exports){
+"use strict";
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const THREE = __importStar(require("three"));
+const constants_1 = require("../constants");
+const utils_1 = require("../utils");
+class RadiusArc {
+    constructor(radius, startAngle, endAngle = 0, plane = constants_1.XZ) {
+        this.radius = radius;
+        this.startAngle = startAngle;
+        this.endAngle = endAngle;
+        this.plane = plane;
+        var degreesStart = 90 - this.startAngle;
+        var degreesEnd = 90 - this.endAngle;
+        var radiansStart = (degreesStart * Math.PI) / 180;
+        var radiansEnd = ((degreesEnd) * Math.PI) / 180;
+        this.curve = new THREE.EllipseCurve(0, 0, this.radius, this.radius, radiansStart, radiansEnd, this.startAngle < this.endAngle, 0);
+    }
+    getCurve() {
+        return this.curve;
+    }
+    getCenterOffset() {
+        const coord = this.curve.getPoint(0);
+        return {
+            x: coord.x > 0 ? -coord.x : Math.abs(coord.x),
+            y: coord.y > 0 ? -coord.y : Math.abs(coord.y)
+        };
+    }
+    getOffset() {
+        const inCoord = this.curve.getPoint(0);
+        const outCoord = this.curve.getPoint(1);
+        return {
+            x: outCoord.x - inCoord.x,
+            y: outCoord.y - inCoord.y
+        };
+    }
+    getCurveForInCoord(inCoord) {
+        const firstCoord = this.curve.getPoint(0);
+        const mirror = utils_1.mirrorCoord(firstCoord);
+        this.curve.aX = inCoord.x + mirror.x;
+        this.curve.aY = inCoord.y + mirror.y;
+        return this.curve;
+    }
+}
+exports.default = RadiusArc;
+
+},{"../constants":1,"../utils":12,"three":15}],7:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -209,11 +300,13 @@ const arc_1 = __importDefault(require("./segments/arc"));
 const ellipse_1 = __importDefault(require("./segments/ellipse"));
 const rotate_1 = __importDefault(require("./transformations/rotate"));
 const scale_1 = __importDefault(require("./transformations/scale"));
-const translate_1 = __importDefault(require("./transformations/translate"));
 const utils_1 = require("./utils");
+const radiusArc_1 = __importDefault(require("./segments/radiusArc"));
+const translate_1 = __importDefault(require("./transformations/translate"));
 class State {
     constructor(postProcessor) {
         this.postProcessor = postProcessor;
+        this.resolution = 0.01;
         this.lastCoord = { x: 0, y: 0, z: 0 };
         this.lastUntransformedCoord = { x: 0, y: 0, z: 0 };
         this.transformations = [];
@@ -226,7 +319,6 @@ class State {
         this.feedRate = undefined;
         this.speed = undefined;
         this.lastCoord = { x: 0, y: 0, z: 0 };
-        this.lastUntransformedCoord = { x: 0, y: 0, z: 0 };
         this.transformations = [];
         this.gcode = [];
     }
@@ -256,22 +348,22 @@ class State {
         }
         return newCoord;
     }
-    applyTransformations(coordinate, transformations = null) {
+    applyTransformations(coordinate, transformations = null, isIncremental = false) {
         let newCoord = coordinate;
         let transformationsToApply = transformations;
         if (transformationsToApply === null) {
             transformationsToApply = this.transformations;
         }
         transformationsToApply.forEach(transformation => {
-            newCoord = this.applyTransformation(newCoord, transformation);
+            newCoord = this.applyTransformation(newCoord, transformation, isIncremental);
         });
         return newCoord;
     }
-    applyTransformation(coord, transformation) {
+    applyTransformation(coord, transformation, isIncremental = false) {
         let newCoord = {};
-        if (transformation instanceof translate_1.default) {
+        if (transformation instanceof translate_1.default && !isIncremental) {
             var translated = new THREE.Vector3(coord.x, coord.y, coord.z);
-            translated.add(new THREE.Vector3(transformation.offset.x, transformation.offset.y, transformation.offset.z));
+            translated.add(new THREE.Vector3(transformation.offset.x || 0, transformation.offset.y || 0, transformation.offset.z || 0));
             if (coord.x !== undefined) {
                 newCoord.x = translated.x;
             }
@@ -282,8 +374,11 @@ class State {
                 newCoord.z = translated.z;
             }
         }
+        else if (isIncremental) {
+            newCoord = coord;
+        }
         if (transformation instanceof rotate_1.default) {
-            var rotated = new THREE.Vector3(coord.x, coord.y, coord.z);
+            var rotated = new THREE.Vector3(coord.x === undefined ? this.lastCoord.x : coord.x, coord.y === undefined ? this.lastCoord.y : coord.y, coord.z === undefined ? this.lastCoord.z : coord.z);
             rotated.applyAxisAngle(new THREE.Vector3(0, 0, 1), -utils_1.toRadians(transformation.angle));
             newCoord = {
                 x: rotated.x,
@@ -310,6 +405,9 @@ class State {
     setTool(tool) {
         this.tool = tool;
     }
+    setResolution(resolution) {
+        this.resolution = resolution;
+    }
     setUnits(units) {
         this.units = units;
         this.write(this.postProcessor.units(units));
@@ -326,99 +424,167 @@ class State {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        const transformedCoord = utils_1.roundCoord(this.applyTransformations(coordinate), 10000);
+        const fullCoord = this.fillCoordWithLastCoord(coordinate);
+        const transformedCoord = utils_1.roundCoord(this.applyTransformations(fullCoord), 10000);
         const cleanedCoord = this.removeRedundantCoords(transformedCoord);
         if (cleanedCoord === null)
             return;
         this.shapes.push(new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedCoord.x, transformedCoord.y, transformedCoord.z)));
         this.write(this.postProcessor.cut(cleanedCoord));
         this.updateLastCoord(transformedCoord);
-        this.updateLastUntransformedCoord(coordinate);
+        this.updateLastUntransformedCoord(utils_1.mergeCoords(this.lastUntransformedCoord, fullCoord));
     }
     icut(offset) {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        const absOffset = utils_1.sumCoords(this.lastUntransformedCoord, offset);
-        const transformedOffset = utils_1.roundCoord(this.applyTransformations(absOffset), 10000);
-        const cleanedCoord = this.removeRedundantCoords(transformedOffset);
+        const fullOffset = this.fillCoordWithZeros(offset);
+        const transformedOffset = utils_1.roundCoord(this.applyTransformations(fullOffset, null, true), 10000);
+        const transformedEndCoord = utils_1.sumCoords(this.lastCoord, transformedOffset);
+        const cleanedCoord = this.removeRedundantCoords(transformedEndCoord);
         if (cleanedCoord === null)
             return;
-        // const destinationCoord = sumCoords(this.lastCoord, transformedOffset)
-        this.shapes.push(new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedOffset.x, transformedOffset.y, transformedOffset.z)));
+        this.shapes.push(new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedEndCoord.x, transformedEndCoord.y, transformedEndCoord.z)));
         this.write(this.postProcessor.cut(cleanedCoord));
-        this.updateLastCoord(transformedOffset);
-        this.updateLastUntransformedCoord(absOffset);
+        this.updateLastCoord(transformedEndCoord);
+        this.updateLastUntransformedCoord(utils_1.sumCoords(this.lastUntransformedCoord, fullOffset));
+    }
+    fillCoordWithLastCoord(coordinate) {
+        return {
+            x: coordinate.x === undefined ? this.lastCoord.x : coordinate.x,
+            y: coordinate.y === undefined ? this.lastCoord.y : coordinate.y,
+            z: coordinate.z === undefined ? this.lastCoord.z : coordinate.z
+        };
+    }
+    fillCoordWithZeros(coordinate) {
+        return {
+            x: coordinate.x === undefined ? 0 : coordinate.x,
+            y: coordinate.y === undefined ? 0 : coordinate.y,
+            z: coordinate.z === undefined ? 0 : coordinate.z
+        };
     }
     rapid(coordinate) {
-        const transformedCoord = utils_1.roundCoord(this.applyTransformations(coordinate), 10000);
+        const fullCoord = this.fillCoordWithLastCoord(coordinate);
+        const transformedCoord = utils_1.roundCoord(this.applyTransformations(fullCoord), 10000);
         const cleanedCoord = this.removeRedundantCoords(transformedCoord);
         if (cleanedCoord === null)
             return;
-        this.shapes.push(new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedCoord.x, transformedCoord.y, transformedCoord.z)));
+        const shape = new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedCoord.x, transformedCoord.y, transformedCoord.z));
+        // @ts-ignore
+        shape.isRapid = true;
+        this.shapes.push(shape);
         this.write(this.postProcessor.rapid(cleanedCoord));
         this.updateLastCoord(transformedCoord);
-        this.updateLastUntransformedCoord(coordinate);
     }
     irapid(offset) {
-        const absOffset = utils_1.sumCoords(this.lastUntransformedCoord, offset);
-        const transformedOffset = utils_1.roundCoord(this.applyTransformations(absOffset), 10000);
-        const cleanedCoord = this.removeRedundantCoords(transformedOffset);
+        const fullOffset = this.fillCoordWithZeros(offset);
+        const transformedOffset = utils_1.roundCoord(this.applyTransformations(fullOffset, null, true), 10000);
+        const endCoord = utils_1.sumCoords(this.lastCoord, transformedOffset);
+        const cleanedCoord = this.removeRedundantCoords(endCoord);
         if (cleanedCoord === null)
             return;
-        // const destinationCoord = sumCoords(this.lastCoord, transformedOffset)
-        this.shapes.push(new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(transformedOffset.x, transformedOffset.y, transformedOffset.z)));
+        const shape = new THREE.LineCurve3(new THREE.Vector3(this.lastCoord.x, this.lastCoord.y, this.lastCoord.z), new THREE.Vector3(endCoord.x, endCoord.y, endCoord.z));
+        // @ts-ignore
+        shape.isRapid = true;
+        this.shapes.push(shape);
         this.write(this.postProcessor.rapid(cleanedCoord));
-        this.updateLastCoord(transformedOffset);
-        this.updateLastUntransformedCoord(absOffset);
+        this.updateLastCoord(endCoord);
     }
     dwell(duration) {
         this.write(this.postProcessor.dwell(duration));
     }
-    arc(offset, angle, plane = constants_1.XZ) {
-        if (!this.feedRate) {
-            throw new Error('No feedrate given, please call `feed()` before cut');
-        }
-        const transformedOffset = this.applyTransformations(offset, this.transformations.filter(t => { return !(t instanceof translate_1.default); }));
-        const arc = new arc_1.default(transformedOffset, angle, plane);
-        this.write(this.postProcessor.arc(arc, this.lastCoord));
-        const outCoord = arc.getOutCoordForInCoord(this.lastCoord);
-        this.shapes.push(arc.getCurveForInCoord(this.lastCoord));
-        this.updateLastCoord(utils_1.mergeCoords(this.lastCoord, outCoord));
-        const untransformedArc = new arc_1.default(offset, angle, plane);
-        const untransformedOutCoord = untransformedArc.getOutCoordForInCoord(this.lastUntransformedCoord);
-        this.updateLastUntransformedCoord(utils_1.mergeCoords(this.lastUntransformedCoord, untransformedOutCoord));
+    hasTransformation(transformationType) {
+        return this.transformations.filter(t => t instanceof transformationType)
+            .length > 0;
     }
-    ellipse(radiusX, radiusY, offsetZ = 0, angle, angleStart = 0, points = 50, plane = constants_1.XZ) {
+    arc(centerOffset, angle, plane = constants_1.XY) {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
+        if (this.hasTransformation(scale_1.default)) {
+            const a = centerOffset.x || 0;
+            const b = centerOffset.y || 0;
+            const radius = Math.sqrt(a * a + b * b);
+            const angleStart = (Math.atan2(0 - a, 0 - b) * 180 / Math.PI);
+            return this.ellipse(radius, radius, 0, angleStart + angle, angleStart);
+        }
+        const transformedOffset = utils_1.roundCoord(this.applyTransformations(this.fillCoordWithZeros(centerOffset), null, true));
+        const transformedArc = new arc_1.default(transformedOffset, angle, plane);
+        const transformedEndOffset = transformedArc.getOffset();
+        const absEndOffset = utils_1.sumCoords(this.lastCoord, transformedEndOffset);
+        this.write(this.postProcessor.arc(absEndOffset, transformedOffset, angle > 0));
+        const curve = transformedArc.getCurveForInCoord(this.lastCoord);
+        this.shapes.push(curve);
+        this.updateLastCoord(absEndOffset);
+    }
+    radiusArc(radius, startAngle, endAngle, plane = constants_1.XY) {
+        if (!this.feedRate) {
+            throw new Error('No feedrate given, please call `feed()` before cut');
+        }
+        if (this.hasTransformation(scale_1.default)) {
+            return this.ellipse(radius, radius, 0, endAngle, startAngle);
+        }
+        this.transformations.forEach(t => {
+            if (t instanceof rotate_1.default) {
+                startAngle += t.angle;
+                endAngle += t.angle;
+            }
+        });
+        const transformedArc = new radiusArc_1.default(radius, startAngle, endAngle, plane);
+        const transformedEndOffset = transformedArc.getOffset();
+        const transformedCenterOffset = transformedArc.getCenterOffset();
+        const absEndOffset = utils_1.sumCoords(this.lastCoord, transformedEndOffset);
+        this.write(this.postProcessor.arc(absEndOffset, transformedCenterOffset, startAngle < endAngle));
+        const curve = transformedArc.getCurveForInCoord(this.lastCoord);
+        this.shapes.push(curve);
+        this.updateLastCoord(utils_1.roundCoord(utils_1.mergeCoords(this.lastCoord, absEndOffset)));
+    }
+    ellipse(radiusX, radiusY, offsetZ = 0, angle, angleStart = 0, points = 50, plane = constants_1.XY) {
+        if (!this.feedRate) {
+            throw new Error('No feedrate given, please call `feed()` before cut');
+        }
+        this.transformations.forEach(t => {
+            if (t instanceof rotate_1.default) {
+                angle += t.angle;
+                angleStart += t.angle;
+            }
+            if (t instanceof scale_1.default) {
+                radiusX = radiusX * (t.scales.x || 1);
+                radiusY = radiusY * (t.scales.y || 1);
+                offsetZ = offsetZ * (t.scales.z || 1);
+            }
+        });
         const ellipse = new ellipse_1.default(radiusX, radiusY, offsetZ, angle, angleStart, points, plane);
         const coords = ellipse.getCoords();
         const gcodes = coords.map(coord => this.postProcessor.cut(utils_1.sumCoords(this.lastCoord, coord)));
         this.writeBatch(gcodes);
-        const outCoord = utils_1.sumCoords(this.lastCoord, coords[coords.length - 1]);
-        this.updateLastCoord(utils_1.mergeCoords(this.lastCoord, outCoord));
-    }
-    translate(offset, cb = () => { }) {
-        const transformation = new translate_1.default(offset);
-        this.transformations.unshift(transformation);
-        cb();
-        this.transformations.splice(this.transformations.indexOf(transformation), 1);
+        const absCoord = utils_1.sumCoords(this.lastCoord, coords[coords.length - 1]);
+        this.shapes.push(ellipse.getCurveForInCoord(this.lastCoord));
+        this.updateLastCoord(absCoord);
     }
     rotate(angle, cb = () => { }) {
         const transformation = new rotate_1.default(angle);
         this.transformations.unshift(transformation);
         cb();
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
+        this.lastUntransformedCoord = this.lastCoord;
     }
     scale(scales, cb = () => { }) {
-        const transformation = new scale_1.default(scales);
+        const transformation = new scale_1.default(typeof scales === 'number' ? { x: scales, y: scales, z: scales } : scales);
         this.transformations.unshift(transformation);
         cb();
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
+        this.lastUntransformedCoord = this.lastCoord;
+    }
+    translate(offset, cb = () => { }) {
+        const transformation = new translate_1.default(offset);
+        this.transformations.unshift(transformation);
+        cb();
+        this.transformations.splice(this.transformations.indexOf(transformation), 1);
+        this.lastUntransformedCoord = this.lastCoord;
     }
     write(command) {
+        // console.log(command)
         this.gcode.push([command]);
     }
     writeBatch(commands) {
@@ -436,7 +602,7 @@ class State {
 }
 exports.default = State;
 
-},{"./constants":1,"./segments/arc":4,"./segments/ellipse":5,"./transformations/rotate":7,"./transformations/scale":8,"./transformations/translate":10,"./utils":11,"fs":12,"three":13}],7:[function(require,module,exports){
+},{"./constants":1,"./segments/arc":4,"./segments/ellipse":5,"./segments/radiusArc":6,"./transformations/rotate":8,"./transformations/scale":9,"./transformations/translate":11,"./utils":12,"fs":14,"three":15}],8:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -451,7 +617,7 @@ class Rotate extends transformation_1.default {
 }
 exports.default = Rotate;
 
-},{"./transformation":9}],8:[function(require,module,exports){
+},{"./transformation":10}],9:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -466,7 +632,7 @@ class Scale extends transformation_1.default {
 }
 exports.default = Scale;
 
-},{"./transformation":9}],9:[function(require,module,exports){
+},{"./transformation":10}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Transformation {
@@ -474,7 +640,7 @@ class Transformation {
 }
 exports.default = Transformation;
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -489,7 +655,7 @@ class Translate extends transformation_1.default {
 }
 exports.default = Translate;
 
-},{"./transformation":9}],11:[function(require,module,exports){
+},{"./transformation":10}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.axes = ['x', 'y', 'z', 'a', 'b', 'c', 'u', 'v', 'w'];
@@ -553,6 +719,17 @@ function roundCoord(coord, precision = 10000) {
     return newCoord;
 }
 exports.roundCoord = roundCoord;
+function mirrorCoord(coord) {
+    const newCoord = {};
+    exports.axes.forEach(axis => {
+        const axisValue = coord[axis];
+        if (axisValue !== undefined) {
+            newCoord[axis] = axisValue > 0 ? -axisValue : Math.abs(axisValue);
+        }
+    });
+    return newCoord;
+}
+exports.mirrorCoord = mirrorCoord;
 function coordToString(coord) {
     let str = '';
     exports.axes.forEach((axis) => {
@@ -565,9 +742,74 @@ function coordToString(coord) {
 }
 exports.coordToString = coordToString;
 
-},{}],12:[function(require,module,exports){
-
 },{}],13:[function(require,module,exports){
+"use strict";
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const THREE = __importStar(require("three"));
+if (typeof window !== 'undefined') {
+    window.THREE = THREE;
+    require('three/examples/js/controls/OrbitControls');
+}
+exports.default = (state, containerEl) => {
+    var renderer = new THREE.WebGLRenderer();
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xaaaaaa);
+    var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+    var controls = new THREE.OrbitControls(camera);
+    controls.screenSpacePanning = true;
+    var size = 1000;
+    var divisions = 100;
+    var grid = new THREE.GridHelper(size, divisions, 0xaaaaaa, 0xbbbbbb);
+    var array = grid.geometry.attributes.color.array;
+    for (var i = 0; i < array.length; i += 60) {
+        for (var j = 0; j < 12; j++) {
+            array[i + j] = 0.56;
+        }
+    }
+    grid.geometry.rotateX(Math.PI / 2);
+    var vector = new THREE.Vector3(0, 0, 1);
+    grid.lookAt(vector);
+    scene.add(grid);
+    var axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    (containerEl || document.body).appendChild(renderer.domElement);
+    var rapidMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, opacity: 0.5, transparent: true });
+    var cutMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+    let shapes = state.shapes;
+    shapes.forEach(shape => {
+        if (shape instanceof THREE.LineCurve3) {
+            const geometry = new THREE.Geometry();
+            geometry.vertices.push(shape.v1);
+            geometry.vertices.push(shape.v2);
+            scene.add(new THREE.Line(geometry, shape.isRapid ? rapidMaterial : cutMaterial));
+        }
+        if (shape instanceof THREE.EllipseCurve) {
+            const geometry = new THREE.BufferGeometry().setFromPoints(shape.getPoints(64));
+            scene.add(new THREE.Line(geometry, cutMaterial));
+        }
+    });
+    camera.position.set(0, 0, 200);
+    camera.lookAt(new THREE.Vector3());
+    controls.update();
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+};
+
+},{"three":15,"three/examples/js/controls/OrbitControls":16}],14:[function(require,module,exports){
+
+},{}],15:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -48272,5 +48514,1058 @@ exports.coordToString = coordToString;
 	Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
+
+},{}],16:[function(require,module,exports){
+/**
+ * @author qiao / https://github.com/qiao
+ * @author mrdoob / http://mrdoob.com
+ * @author alteredq / http://alteredqualia.com/
+ * @author WestLangley / http://github.com/WestLangley
+ * @author erich666 / http://erichaines.com
+ */
+
+// This set of controls performs orbiting, dollying (zooming), and panning.
+// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+//
+//    Orbit - left mouse / touch: one-finger move
+//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
+
+THREE.OrbitControls = function ( object, domElement ) {
+
+	this.object = object;
+
+	this.domElement = ( domElement !== undefined ) ? domElement : document;
+
+	// Set to false to disable this control
+	this.enabled = true;
+
+	// "target" sets the location of focus, where the object orbits around
+	this.target = new THREE.Vector3();
+
+	// How far you can dolly in and out ( PerspectiveCamera only )
+	this.minDistance = 0;
+	this.maxDistance = Infinity;
+
+	// How far you can zoom in and out ( OrthographicCamera only )
+	this.minZoom = 0;
+	this.maxZoom = Infinity;
+
+	// How far you can orbit vertically, upper and lower limits.
+	// Range is 0 to Math.PI radians.
+	this.minPolarAngle = 0; // radians
+	this.maxPolarAngle = Math.PI; // radians
+
+	// How far you can orbit horizontally, upper and lower limits.
+	// If set, must be a sub-interval of the interval [ - Math.PI, Math.PI ].
+	this.minAzimuthAngle = - Infinity; // radians
+	this.maxAzimuthAngle = Infinity; // radians
+
+	// Set to true to enable damping (inertia)
+	// If damping is enabled, you must call controls.update() in your animation loop
+	this.enableDamping = false;
+	this.dampingFactor = 0.25;
+
+	// This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+	// Set to false to disable zooming
+	this.enableZoom = true;
+	this.zoomSpeed = 1.0;
+
+	// Set to false to disable rotating
+	this.enableRotate = true;
+	this.rotateSpeed = 1.0;
+
+	// Set to false to disable panning
+	this.enablePan = true;
+	this.panSpeed = 1.0;
+	this.screenSpacePanning = false; // if true, pan in screen-space
+	this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+
+	// Set to true to automatically rotate around the target
+	// If auto-rotate is enabled, you must call controls.update() in your animation loop
+	this.autoRotate = false;
+	this.autoRotateSpeed = 2.0; // 30 seconds per round when fps is 60
+
+	// Set to false to disable use of the keys
+	this.enableKeys = true;
+
+	// The four arrow keys
+	this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+
+	// Mouse buttons
+	this.mouseButtons = { LEFT: THREE.MOUSE.LEFT, MIDDLE: THREE.MOUSE.MIDDLE, RIGHT: THREE.MOUSE.RIGHT };
+
+	// for reset
+	this.target0 = this.target.clone();
+	this.position0 = this.object.position.clone();
+	this.zoom0 = this.object.zoom;
+
+	//
+	// public methods
+	//
+
+	this.getPolarAngle = function () {
+
+		return spherical.phi;
+
+	};
+
+	this.getAzimuthalAngle = function () {
+
+		return spherical.theta;
+
+	};
+
+	this.saveState = function () {
+
+		scope.target0.copy( scope.target );
+		scope.position0.copy( scope.object.position );
+		scope.zoom0 = scope.object.zoom;
+
+	};
+
+	this.reset = function () {
+
+		scope.target.copy( scope.target0 );
+		scope.object.position.copy( scope.position0 );
+		scope.object.zoom = scope.zoom0;
+
+		scope.object.updateProjectionMatrix();
+		scope.dispatchEvent( changeEvent );
+
+		scope.update();
+
+		state = STATE.NONE;
+
+	};
+
+	// this method is exposed, but perhaps it would be better if we can make it private...
+	this.update = function () {
+
+		var offset = new THREE.Vector3();
+
+		// so camera.up is the orbit axis
+		var quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
+		var quatInverse = quat.clone().inverse();
+
+		var lastPosition = new THREE.Vector3();
+		var lastQuaternion = new THREE.Quaternion();
+
+		return function update() {
+
+			var position = scope.object.position;
+
+			offset.copy( position ).sub( scope.target );
+
+			// rotate offset to "y-axis-is-up" space
+			offset.applyQuaternion( quat );
+
+			// angle from z-axis around y-axis
+			spherical.setFromVector3( offset );
+
+			if ( scope.autoRotate && state === STATE.NONE ) {
+
+				rotateLeft( getAutoRotationAngle() );
+
+			}
+
+			spherical.theta += sphericalDelta.theta;
+			spherical.phi += sphericalDelta.phi;
+
+			// restrict theta to be between desired limits
+			spherical.theta = Math.max( scope.minAzimuthAngle, Math.min( scope.maxAzimuthAngle, spherical.theta ) );
+
+			// restrict phi to be between desired limits
+			spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+
+			spherical.makeSafe();
+
+
+			spherical.radius *= scale;
+
+			// restrict radius to be between desired limits
+			spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
+
+			// move target to panned location
+			scope.target.add( panOffset );
+
+			offset.setFromSpherical( spherical );
+
+			// rotate offset back to "camera-up-vector-is-up" space
+			offset.applyQuaternion( quatInverse );
+
+			position.copy( scope.target ).add( offset );
+
+			scope.object.lookAt( scope.target );
+
+			if ( scope.enableDamping === true ) {
+
+				sphericalDelta.theta *= ( 1 - scope.dampingFactor );
+				sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+
+				panOffset.multiplyScalar( 1 - scope.dampingFactor );
+
+			} else {
+
+				sphericalDelta.set( 0, 0, 0 );
+
+				panOffset.set( 0, 0, 0 );
+
+			}
+
+			scale = 1;
+
+			// update condition is:
+			// min(camera displacement, camera rotation in radians)^2 > EPS
+			// using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+			if ( zoomChanged ||
+				lastPosition.distanceToSquared( scope.object.position ) > EPS ||
+				8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+				scope.dispatchEvent( changeEvent );
+
+				lastPosition.copy( scope.object.position );
+				lastQuaternion.copy( scope.object.quaternion );
+				zoomChanged = false;
+
+				return true;
+
+			}
+
+			return false;
+
+		};
+
+	}();
+
+	this.dispose = function () {
+
+		scope.domElement.removeEventListener( 'contextmenu', onContextMenu, false );
+		scope.domElement.removeEventListener( 'mousedown', onMouseDown, false );
+		scope.domElement.removeEventListener( 'wheel', onMouseWheel, false );
+
+		scope.domElement.removeEventListener( 'touchstart', onTouchStart, false );
+		scope.domElement.removeEventListener( 'touchend', onTouchEnd, false );
+		scope.domElement.removeEventListener( 'touchmove', onTouchMove, false );
+
+		document.removeEventListener( 'mousemove', onMouseMove, false );
+		document.removeEventListener( 'mouseup', onMouseUp, false );
+
+		window.removeEventListener( 'keydown', onKeyDown, false );
+
+		//scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+	};
+
+	//
+	// internals
+	//
+
+	var scope = this;
+
+	var changeEvent = { type: 'change' };
+	var startEvent = { type: 'start' };
+	var endEvent = { type: 'end' };
+
+	var STATE = { NONE: - 1, ROTATE: 0, DOLLY: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_DOLLY_PAN: 4 };
+
+	var state = STATE.NONE;
+
+	var EPS = 0.000001;
+
+	// current position in spherical coordinates
+	var spherical = new THREE.Spherical();
+	var sphericalDelta = new THREE.Spherical();
+
+	var scale = 1;
+	var panOffset = new THREE.Vector3();
+	var zoomChanged = false;
+
+	var rotateStart = new THREE.Vector2();
+	var rotateEnd = new THREE.Vector2();
+	var rotateDelta = new THREE.Vector2();
+
+	var panStart = new THREE.Vector2();
+	var panEnd = new THREE.Vector2();
+	var panDelta = new THREE.Vector2();
+
+	var dollyStart = new THREE.Vector2();
+	var dollyEnd = new THREE.Vector2();
+	var dollyDelta = new THREE.Vector2();
+
+	function getAutoRotationAngle() {
+
+		return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+	}
+
+	function getZoomScale() {
+
+		return Math.pow( 0.95, scope.zoomSpeed );
+
+	}
+
+	function rotateLeft( angle ) {
+
+		sphericalDelta.theta -= angle;
+
+	}
+
+	function rotateUp( angle ) {
+
+		sphericalDelta.phi -= angle;
+
+	}
+
+	var panLeft = function () {
+
+		var v = new THREE.Vector3();
+
+		return function panLeft( distance, objectMatrix ) {
+
+			v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+			v.multiplyScalar( - distance );
+
+			panOffset.add( v );
+
+		};
+
+	}();
+
+	var panUp = function () {
+
+		var v = new THREE.Vector3();
+
+		return function panUp( distance, objectMatrix ) {
+
+			if ( scope.screenSpacePanning === true ) {
+
+				v.setFromMatrixColumn( objectMatrix, 1 );
+
+			} else {
+
+				v.setFromMatrixColumn( objectMatrix, 0 );
+				v.crossVectors( scope.object.up, v );
+
+			}
+
+			v.multiplyScalar( distance );
+
+			panOffset.add( v );
+
+		};
+
+	}();
+
+	// deltaX and deltaY are in pixels; right and down are positive
+	var pan = function () {
+
+		var offset = new THREE.Vector3();
+
+		return function pan( deltaX, deltaY ) {
+
+			var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+			if ( scope.object.isPerspectiveCamera ) {
+
+				// perspective
+				var position = scope.object.position;
+				offset.copy( position ).sub( scope.target );
+				var targetDistance = offset.length();
+
+				// half of the fov is center to top of screen
+				targetDistance *= Math.tan( ( scope.object.fov / 2 ) * Math.PI / 180.0 );
+
+				// we use only clientHeight here so aspect ratio does not distort speed
+				panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+				panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+			} else if ( scope.object.isOrthographicCamera ) {
+
+				// orthographic
+				panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+				panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+			} else {
+
+				// camera neither orthographic nor perspective
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+				scope.enablePan = false;
+
+			}
+
+		};
+
+	}();
+
+	function dollyIn( dollyScale ) {
+
+		if ( scope.object.isPerspectiveCamera ) {
+
+			scale /= dollyScale;
+
+		} else if ( scope.object.isOrthographicCamera ) {
+
+			scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+			scope.object.updateProjectionMatrix();
+			zoomChanged = true;
+
+		} else {
+
+			console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+			scope.enableZoom = false;
+
+		}
+
+	}
+
+	function dollyOut( dollyScale ) {
+
+		if ( scope.object.isPerspectiveCamera ) {
+
+			scale *= dollyScale;
+
+		} else if ( scope.object.isOrthographicCamera ) {
+
+			scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
+			scope.object.updateProjectionMatrix();
+			zoomChanged = true;
+
+		} else {
+
+			console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+			scope.enableZoom = false;
+
+		}
+
+	}
+
+	//
+	// event callbacks - update the object state
+	//
+
+	function handleMouseDownRotate( event ) {
+
+		//console.log( 'handleMouseDownRotate' );
+
+		rotateStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseDownDolly( event ) {
+
+		//console.log( 'handleMouseDownDolly' );
+
+		dollyStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseDownPan( event ) {
+
+		//console.log( 'handleMouseDownPan' );
+
+		panStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseMoveRotate( event ) {
+
+		//console.log( 'handleMouseMoveRotate' );
+
+		rotateEnd.set( event.clientX, event.clientY );
+
+		rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+		var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+		rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+		rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+		rotateStart.copy( rotateEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseMoveDolly( event ) {
+
+		//console.log( 'handleMouseMoveDolly' );
+
+		dollyEnd.set( event.clientX, event.clientY );
+
+		dollyDelta.subVectors( dollyEnd, dollyStart );
+
+		if ( dollyDelta.y > 0 ) {
+
+			dollyIn( getZoomScale() );
+
+		} else if ( dollyDelta.y < 0 ) {
+
+			dollyOut( getZoomScale() );
+
+		}
+
+		dollyStart.copy( dollyEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseMovePan( event ) {
+
+		//console.log( 'handleMouseMovePan' );
+
+		panEnd.set( event.clientX, event.clientY );
+
+		panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+		pan( panDelta.x, panDelta.y );
+
+		panStart.copy( panEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseUp( event ) {
+
+		// console.log( 'handleMouseUp' );
+
+	}
+
+	function handleMouseWheel( event ) {
+
+		// console.log( 'handleMouseWheel' );
+
+		if ( event.deltaY < 0 ) {
+
+			dollyOut( getZoomScale() );
+
+		} else if ( event.deltaY > 0 ) {
+
+			dollyIn( getZoomScale() );
+
+		}
+
+		scope.update();
+
+	}
+
+	function handleKeyDown( event ) {
+
+		//console.log( 'handleKeyDown' );
+
+		switch ( event.keyCode ) {
+
+			case scope.keys.UP:
+				pan( 0, scope.keyPanSpeed );
+				scope.update();
+				break;
+
+			case scope.keys.BOTTOM:
+				pan( 0, - scope.keyPanSpeed );
+				scope.update();
+				break;
+
+			case scope.keys.LEFT:
+				pan( scope.keyPanSpeed, 0 );
+				scope.update();
+				break;
+
+			case scope.keys.RIGHT:
+				pan( - scope.keyPanSpeed, 0 );
+				scope.update();
+				break;
+
+		}
+
+	}
+
+	function handleTouchStartRotate( event ) {
+
+		//console.log( 'handleTouchStartRotate' );
+
+		rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+	}
+
+	function handleTouchStartDollyPan( event ) {
+
+		//console.log( 'handleTouchStartDollyPan' );
+
+		if ( scope.enableZoom ) {
+
+			var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+			var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+			var distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyStart.set( 0, distance );
+
+		}
+
+		if ( scope.enablePan ) {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			panStart.set( x, y );
+
+		}
+
+	}
+
+	function handleTouchMoveRotate( event ) {
+
+		//console.log( 'handleTouchMoveRotate' );
+
+		rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+		rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+		var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+		rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+		rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+		rotateStart.copy( rotateEnd );
+
+		scope.update();
+
+	}
+
+	function handleTouchMoveDollyPan( event ) {
+
+		//console.log( 'handleTouchMoveDollyPan' );
+
+		if ( scope.enableZoom ) {
+
+			var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+			var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+			var distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyEnd.set( 0, distance );
+
+			dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
+
+			dollyIn( dollyDelta.y );
+
+			dollyStart.copy( dollyEnd );
+
+		}
+
+		if ( scope.enablePan ) {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			panEnd.set( x, y );
+
+			panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+			pan( panDelta.x, panDelta.y );
+
+			panStart.copy( panEnd );
+
+		}
+
+		scope.update();
+
+	}
+
+	function handleTouchEnd( event ) {
+
+		//console.log( 'handleTouchEnd' );
+
+	}
+
+	//
+	// event handlers - FSM: listen for events and reset state
+	//
+
+	function onMouseDown( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+		switch ( event.button ) {
+
+			case scope.mouseButtons.LEFT:
+
+				if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+					if ( scope.enablePan === false ) return;
+
+					handleMouseDownPan( event );
+
+					state = STATE.PAN;
+
+				} else {
+
+					if ( scope.enableRotate === false ) return;
+
+					handleMouseDownRotate( event );
+
+					state = STATE.ROTATE;
+
+				}
+
+				break;
+
+			case scope.mouseButtons.MIDDLE:
+
+				if ( scope.enableZoom === false ) return;
+
+				handleMouseDownDolly( event );
+
+				state = STATE.DOLLY;
+
+				break;
+
+			case scope.mouseButtons.RIGHT:
+
+				if ( scope.enablePan === false ) return;
+
+				handleMouseDownPan( event );
+
+				state = STATE.PAN;
+
+				break;
+
+		}
+
+		if ( state !== STATE.NONE ) {
+
+			document.addEventListener( 'mousemove', onMouseMove, false );
+			document.addEventListener( 'mouseup', onMouseUp, false );
+
+			scope.dispatchEvent( startEvent );
+
+		}
+
+	}
+
+	function onMouseMove( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+		switch ( state ) {
+
+			case STATE.ROTATE:
+
+				if ( scope.enableRotate === false ) return;
+
+				handleMouseMoveRotate( event );
+
+				break;
+
+			case STATE.DOLLY:
+
+				if ( scope.enableZoom === false ) return;
+
+				handleMouseMoveDolly( event );
+
+				break;
+
+			case STATE.PAN:
+
+				if ( scope.enablePan === false ) return;
+
+				handleMouseMovePan( event );
+
+				break;
+
+		}
+
+	}
+
+	function onMouseUp( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		handleMouseUp( event );
+
+		document.removeEventListener( 'mousemove', onMouseMove, false );
+		document.removeEventListener( 'mouseup', onMouseUp, false );
+
+		scope.dispatchEvent( endEvent );
+
+		state = STATE.NONE;
+
+	}
+
+	function onMouseWheel( event ) {
+
+		if ( scope.enabled === false || scope.enableZoom === false || ( state !== STATE.NONE && state !== STATE.ROTATE ) ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		scope.dispatchEvent( startEvent );
+
+		handleMouseWheel( event );
+
+		scope.dispatchEvent( endEvent );
+
+	}
+
+	function onKeyDown( event ) {
+
+		if ( scope.enabled === false || scope.enableKeys === false || scope.enablePan === false ) return;
+
+		handleKeyDown( event );
+
+	}
+
+	function onTouchStart( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+		switch ( event.touches.length ) {
+
+			case 1:	// one-fingered touch: rotate
+
+				if ( scope.enableRotate === false ) return;
+
+				handleTouchStartRotate( event );
+
+				state = STATE.TOUCH_ROTATE;
+
+				break;
+
+			case 2:	// two-fingered touch: dolly-pan
+
+				if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+				handleTouchStartDollyPan( event );
+
+				state = STATE.TOUCH_DOLLY_PAN;
+
+				break;
+
+			default:
+
+				state = STATE.NONE;
+
+		}
+
+		if ( state !== STATE.NONE ) {
+
+			scope.dispatchEvent( startEvent );
+
+		}
+
+	}
+
+	function onTouchMove( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		switch ( event.touches.length ) {
+
+			case 1: // one-fingered touch: rotate
+
+				if ( scope.enableRotate === false ) return;
+				if ( state !== STATE.TOUCH_ROTATE ) return; // is this needed?
+
+				handleTouchMoveRotate( event );
+
+				break;
+
+			case 2: // two-fingered touch: dolly-pan
+
+				if ( scope.enableZoom === false && scope.enablePan === false ) return;
+				if ( state !== STATE.TOUCH_DOLLY_PAN ) return; // is this needed?
+
+				handleTouchMoveDollyPan( event );
+
+				break;
+
+			default:
+
+				state = STATE.NONE;
+
+		}
+
+	}
+
+	function onTouchEnd( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		handleTouchEnd( event );
+
+		scope.dispatchEvent( endEvent );
+
+		state = STATE.NONE;
+
+	}
+
+	function onContextMenu( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+	}
+
+	//
+
+	scope.domElement.addEventListener( 'contextmenu', onContextMenu, false );
+
+	scope.domElement.addEventListener( 'mousedown', onMouseDown, false );
+	scope.domElement.addEventListener( 'wheel', onMouseWheel, false );
+
+	scope.domElement.addEventListener( 'touchstart', onTouchStart, false );
+	scope.domElement.addEventListener( 'touchend', onTouchEnd, false );
+	scope.domElement.addEventListener( 'touchmove', onTouchMove, false );
+
+	window.addEventListener( 'keydown', onKeyDown, false );
+
+	// force an update at start
+
+	this.update();
+
+};
+
+THREE.OrbitControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+THREE.OrbitControls.prototype.constructor = THREE.OrbitControls;
+
+Object.defineProperties( THREE.OrbitControls.prototype, {
+
+	center: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .center has been renamed to .target' );
+			return this.target;
+
+		}
+
+	},
+
+	// backward compatibility
+
+	noZoom: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .noZoom has been deprecated. Use .enableZoom instead.' );
+			return ! this.enableZoom;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .noZoom has been deprecated. Use .enableZoom instead.' );
+			this.enableZoom = ! value;
+
+		}
+
+	},
+
+	noRotate: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .noRotate has been deprecated. Use .enableRotate instead.' );
+			return ! this.enableRotate;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .noRotate has been deprecated. Use .enableRotate instead.' );
+			this.enableRotate = ! value;
+
+		}
+
+	},
+
+	noPan: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .noPan has been deprecated. Use .enablePan instead.' );
+			return ! this.enablePan;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .noPan has been deprecated. Use .enablePan instead.' );
+			this.enablePan = ! value;
+
+		}
+
+	},
+
+	noKeys: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .noKeys has been deprecated. Use .enableKeys instead.' );
+			return ! this.enableKeys;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .noKeys has been deprecated. Use .enableKeys instead.' );
+			this.enableKeys = ! value;
+
+		}
+
+	},
+
+	staticMoving: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .staticMoving has been deprecated. Use .enableDamping instead.' );
+			return ! this.enableDamping;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .staticMoving has been deprecated. Use .enableDamping instead.' );
+			this.enableDamping = ! value;
+
+		}
+
+	},
+
+	dynamicDampingFactor: {
+
+		get: function () {
+
+			console.warn( 'THREE.OrbitControls: .dynamicDampingFactor has been renamed. Use .dampingFactor instead.' );
+			return this.dampingFactor;
+
+		},
+
+		set: function ( value ) {
+
+			console.warn( 'THREE.OrbitControls: .dynamicDampingFactor has been renamed. Use .dampingFactor instead.' );
+			this.dampingFactor = value;
+
+		}
+
+	}
+
+} );
 
 },{}]},{},[2]);

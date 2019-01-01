@@ -62,6 +62,17 @@ export function roundCoord(coord: Coordinate, precision: number = 10000) {
     return newCoord
 }
 
+export function mirrorCoord(coord: Coordinate) {
+    const newCoord: Coordinate = {}
+    axes.forEach(axis => {
+        const axisValue = coord[axis]
+        if (axisValue !== undefined) {
+            newCoord[axis] = axisValue > 0 ? -axisValue : Math.abs(axisValue)
+        }
+    })
+    return newCoord
+}
+
 export function coordToString(coord: Coordinate) {
     let str = ''
     axes.forEach((axis) => {

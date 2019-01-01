@@ -47,7 +47,7 @@ with (openjscam) {
     feed(200)
     ellipse(5, 1, 0, 270, 0, 64)
     ellipse(10, 1.1, 0, 360, 270, 16)
-    tap.same(Math.round(state.lastCoord.x * 10000) / 10000, -5, 'ellipse end coord should be correct')
+    tap.same(Math.round(state.lastCoord.x * 10000) / 10000, 5, 'ellipse end coord should be correct')
     tap.same(Math.round(state.lastCoord.y * 10000) / 10000, 0.1, 'ellipse end coord should be correct')
 
     reset()
@@ -124,8 +124,64 @@ with (openjscam) {
     arc({ x: -1 }, 90)
     icut({ x: -8 })
     arc({ y: 1 }, 90)
-    tap.same(gcode(), [['F200'],['G0 Y1'],['G1 Y9'],['G2 X1 Y10 Z0 I1 J0'],['G1 X9'],['G2 X10 Y9 Z0 I0 J-1'],['G1 Y1'],['G2 X9 Y0 Z0 I-1 J0'],['G1 X1'],['G2 X0 Y1 Z0 I0 J1']], 'should make a square with rounded corners')
-   
-    // console.log(JSON.stringify(gcode()))
+    tap.same(gcode(), [['F200'],['G0 Y1'],['G1 Y9'],['G2 X1 Y10 Z0 I1 J0'],['G1 X9'],['G2 X10 Y9 Z0 I0 J-1'],['G1 Y1'],['G2 X9 Y0 Z0 I-1 J0'],['G1 X1'],['G2 X0 Y1 Z0 I0 J1']], 'should make a square with rounded corners using arc')
+    
+    reset()
+    feed(200)
+    rapid({ y: 1 })
+    icut({ y: 8 })
+    radiusArc(1, 270, 360)
+    icut({ x: 8 })
+    radiusArc(1, 0, 90)
+    icut({ y: -8 })
+    radiusArc(1, 90, 180)
+    icut({ x: -8 })
+    radiusArc(1, 180, 270)
+    tap.same(gcode(), [['F200'], ['G0 Y1'], ['G1 Y9'], ['G2 X1 Y10 Z0 I1 J0'], ['G1 X9'], ['G2 X10 Y9 Z0 I0 J-1'], ['G1 Y1'], ['G2 X9 Y0 Z0 I-1 J0'], ['G1 X1'], ['G2 X0 Y1 Z0 I0 J1']], 'should make a square with rounded corners using radiusArc')
+
+    reset()
+    feed(200)
+    rotate(90, () => {
+        arc({ y: -1 }, 90)
+    })
+    tap.same(gcode(), [['F200'], ['G2 X-1 Y-1 Z0 I-1 J0']], 'should make a rotated arc')
+
+    reset()
+    feed(200)
+    rotate(90, () => {
+        radiusArc(1, 0, 90)
+    })
+    tap.same(gcode(), [['F200'], ['G2 X-1 Y-1 Z0 I-1 J0']], 'should make a rotated arc')
+    
+    reset()
+    feed(200)
+    rotate(45, () => {
+        rapid({ y: 1 })
+        icut({ y: 8 })
+        radiusArc(1, 270, 360)
+        icut({ x: 8 })
+        radiusArc(1, 0, 90)
+        icut({ y: -8 })
+        radiusArc(1, 90, 180)
+        icut({ x: -8 })
+        radiusArc(1, 180, 270)
+    })
+    
+    reset()
+    feed(200)
+    rotate(45, () => {
+        rapid({ y: 1 })
+        icut({ y: 8 })
+        arc({ x: 1 }, 90)
+        icut({ x: 8 })
+        arc({ y: -1 }, 90)
+        icut({ y: -8 })
+        arc({ x: -1 }, 90)
+        icut({ x: -8 })
+        arc({ y: 1 }, 90)
+    })
     // log()
+
+    // tap.same(gcode(), [['F200'], ['G0 Y1'], ['G1 Y9'], ['G2 X1 Y10 Z0 I1 J0'], ['G1 X9'], ['G2 X10 Y9 Z0 I0 J-1'], ['G1 Y1'], ['G2 X9 Y0 Z0 I-1 J0'], ['G1 X1'], ['G2 X0 Y1 Z0 I0 J1']], 'should make a square with rounded corners using radiusArc')
+
 }

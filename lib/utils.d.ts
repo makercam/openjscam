@@ -7,4 +7,5 @@ export declare function findCoordOnCircle(radius: number, angle: number, offset:
 export declare function mergeCoords(coord1: Coordinate, coord2: Coordinate): Coordinate;
 export declare function round(number: number, precision?: number): number;
 export declare function roundCoord(coord: Coordinate, precision?: number): Coordinate;
+export declare function mirrorCoord(coord: Coordinate): Coordinate;
 export declare function coordToString(coord: Coordinate): string;
