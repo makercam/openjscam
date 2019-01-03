@@ -168,9 +168,11 @@ class Arc {
     }
     getCurveForInCoord(inCoord) {
         const firstCoord = this.curve.getPoint(0);
-        const mirror = utils_1.mirrorCoord(firstCoord);
+        const mirror = utils_1.mirrorCoord({ x: firstCoord.x, y: firstCoord.y });
         this.curve.aX = inCoord.x + mirror.x;
         this.curve.aY = inCoord.y + mirror.y;
+        // @ts-ignore
+        this.curve.startZ = inCoord.z;
         return this.curve;
     }
 }
@@ -190,36 +192,38 @@ const THREE = __importStar(require("three"));
 const constants_1 = require("../constants");
 const utils_1 = require("../utils");
 class Ellipse {
-    constructor(radiusX, radiusY, offsetZ, angleEnd, angleStart = 0, points = 64, plane = constants_1.XZ) {
+    constructor(radiusX, radiusY, offsetZ, angleEnd, angleStart = 0, plane = constants_1.XZ) {
         this.radiusX = radiusX;
         this.radiusY = radiusY;
         this.offsetZ = offsetZ;
         this.angleEnd = angleEnd;
         this.angleStart = angleStart;
-        this.points = points;
         this.plane = plane;
         var degreesStart = 90 - this.angleStart;
         var degreesEnd = 90 - this.angleEnd;
-        // console.log(this.angleStart, this.angleEnd, ',', degreesStart, degreesEnd)
         var radiansStart = (degreesStart * Math.PI) / 180;
         var radiansEnd = (degreesEnd * Math.PI) / 180;
         this.curve = new THREE.EllipseCurve(0, 0, this.radiusX, this.radiusY, radiansStart, radiansEnd, this.angleStart < this.angleEnd, 0);
     }
     getCurveForInCoord(inCoord) {
         const firstCoord = this.curve.getPoint(0);
-        const mirror = utils_1.mirrorCoord(firstCoord);
+        const mirror = utils_1.mirrorCoord({ x: firstCoord.x, y: firstCoord.y });
         this.curve.aX = inCoord.x + mirror.x;
         this.curve.aY = inCoord.y + mirror.y;
+        // @ts-ignore
+        this.curve.startZ = inCoord.z;
+        // @ts-ignore
+        this.curve.offsetZ = this.offsetZ;
         return this.curve;
     }
-    getCoords() {
-        const coords = this.curve.getPoints(this.points);
+    getCoords(points) {
+        const coords = this.curve.getPoints(points);
         const firstPoint = coords[0];
         const mapped = coords.map((coord, i) => {
             return {
                 x: coord.x - firstPoint.x,
                 y: coord.y - firstPoint.y,
-                z: (this.offsetZ / this.points) * i
+                z: (this.offsetZ / points) * i
             };
         });
         return mapped;
@@ -272,7 +276,7 @@ class RadiusArc {
     }
     getCurveForInCoord(inCoord) {
         const firstCoord = this.curve.getPoint(0);
-        const mirror = utils_1.mirrorCoord(firstCoord);
+        const mirror = utils_1.mirrorCoord({ x: firstCoord.x, y: firstCoord.y });
         this.curve.aX = inCoord.x + mirror.x;
         this.curve.aY = inCoord.y + mirror.y;
         return this.curve;
@@ -293,6 +297,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// @ts-ignore
 const fs_1 = __importDefault(require("fs"));
 const THREE = __importStar(require("three"));
 const constants_1 = require("./constants");
@@ -306,7 +311,7 @@ const translate_1 = __importDefault(require("./transformations/translate"));
 class State {
     constructor(postProcessor) {
         this.postProcessor = postProcessor;
-        this.resolution = 0.01;
+        this.resolution = 0.1;
         this.lastCoord = { x: 0, y: 0, z: 0 };
         this.lastUntransformedCoord = { x: 0, y: 0, z: 0 };
         this.transformations = [];
@@ -494,6 +499,7 @@ class State {
         this.write(this.postProcessor.dwell(duration));
     }
     hasTransformation(transformationType) {
+        // @ts-ignore
         return this.transformations.filter(t => t instanceof transformationType)
             .length > 0;
     }
@@ -539,7 +545,7 @@ class State {
         this.shapes.push(curve);
         this.updateLastCoord(utils_1.roundCoord(utils_1.mergeCoords(this.lastCoord, absEndOffset)));
     }
-    ellipse(radiusX, radiusY, offsetZ = 0, angle, angleStart = 0, points = 50, plane = constants_1.XY) {
+    ellipse(radiusX, radiusY, offsetZ = 0, angle, angleStart = 0, points, plane = constants_1.XY) {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
@@ -554,9 +560,20 @@ class State {
                 offsetZ = offsetZ * (t.scales.z || 1);
             }
         });
-        const ellipse = new ellipse_1.default(radiusX, radiusY, offsetZ, angle, angleStart, points, plane);
-        const coords = ellipse.getCoords();
-        const gcodes = coords.map(coord => this.postProcessor.cut(utils_1.sumCoords(this.lastCoord, coord)));
+        const ellipse = new ellipse_1.default(radiusX, radiusY, offsetZ, angle, angleStart, plane);
+        if (!points) {
+            const length = ellipse.curve.getLength();
+            points = length / this.resolution;
+            if (points < 3) {
+                points = 2;
+            }
+        }
+        const coords = ellipse.getCoords(points);
+        const gcodes = coords.map(coord => {
+            const absCoord = utils_1.sumCoords(this.lastCoord, coord);
+            const cleanedCoord = this.removeRedundantCoords(absCoord);
+            return this.postProcessor.cut(cleanedCoord === null ? absCoord : cleanedCoord);
+        });
         this.writeBatch(gcodes);
         const absCoord = utils_1.sumCoords(this.lastCoord, coords[coords.length - 1]);
         this.shapes.push(ellipse.getCurveForInCoord(this.lastCoord));
@@ -584,6 +601,7 @@ class State {
         this.lastUntransformedCoord = this.lastCoord;
     }
     write(command) {
+        // helpfull for debugging
         // console.log(command)
         this.gcode.push([command]);
     }
@@ -674,6 +692,21 @@ function sumCoords(coord1, coord2) {
     return newCoord;
 }
 exports.sumCoords = sumCoords;
+function subCoords(coord1, coord2) {
+    const newCoord = {};
+    exports.axes.forEach((axis) => {
+        const coord1AxisValue = coord1[axis];
+        const coord2AxisValue = coord2[axis];
+        if (coord1AxisValue !== undefined) {
+            newCoord[axis] = coord1AxisValue;
+        }
+        if (coord1AxisValue !== undefined && coord2AxisValue !== undefined) {
+            newCoord[axis] = coord1AxisValue - coord2AxisValue;
+        }
+    });
+    return newCoord;
+}
+exports.subCoords = subCoords;
 function toRadians(angle) {
     return angle * (Math.PI / 180);
 }
@@ -754,19 +787,26 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const THREE = __importStar(require("three"));
 if (typeof window !== 'undefined') {
+    // @ts-ignore
     window.THREE = THREE;
+    // @ts-ignore
     require('three/examples/js/controls/OrbitControls');
 }
 exports.default = (state, containerEl) => {
-    var renderer = new THREE.WebGLRenderer();
+    const el = containerEl || document.body;
+    var renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        devicePixelRatio: window.devicePixelRatio
+    });
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
-    var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+    var camera = new THREE.PerspectiveCamera(50, el.clientWidth / el.clientHeight, 0.01, 10000);
     var controls = new THREE.OrbitControls(camera);
     controls.screenSpacePanning = true;
     var size = 1000;
     var divisions = 100;
     var grid = new THREE.GridHelper(size, divisions, 0xaaaaaa, 0xbbbbbb);
+    // @ts-ignore
     var array = grid.geometry.attributes.color.array;
     for (var i = 0; i < array.length; i += 60) {
         for (var j = 0; j < 12; j++) {
@@ -779,8 +819,8 @@ exports.default = (state, containerEl) => {
     scene.add(grid);
     var axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    (containerEl || document.body).appendChild(renderer.domElement);
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    el.appendChild(renderer.domElement);
     var rapidMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, opacity: 0.5, transparent: true });
     var cutMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
     let shapes = state.shapes;
@@ -789,10 +829,15 @@ exports.default = (state, containerEl) => {
             const geometry = new THREE.Geometry();
             geometry.vertices.push(shape.v1);
             geometry.vertices.push(shape.v2);
+            // @ts-ignore
             scene.add(new THREE.Line(geometry, shape.isRapid ? rapidMaterial : cutMaterial));
         }
         if (shape instanceof THREE.EllipseCurve) {
-            const geometry = new THREE.BufferGeometry().setFromPoints(shape.getPoints(64));
+            const points = shape.getPoints(64).map((point, i) => {
+                // @ts-ignore
+                return new THREE.Vector3(point.x, point.y, shape.startZ + ((shape.clientZ || 0) / 64) * i);
+            });
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
             scene.add(new THREE.Line(geometry, cutMaterial));
         }
     });
@@ -805,6 +850,13 @@ exports.default = (state, containerEl) => {
         renderer.render(scene, camera);
     }
     animate();
+    window.removeEventListener('resize', onWindowResize);
+    window.addEventListener('resize', onWindowResize, false);
+    function onWindowResize() {
+        camera.aspect = el.clientWidth / el.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(el.clientWidth, el.clientHeight);
+    }
 };
 
 },{"three":15,"three/examples/js/controls/OrbitControls":16}],14:[function(require,module,exports){
