@@ -1,3 +1,4 @@
+// @ts-ignore
 import fs from 'fs'
 import * as THREE from 'three'
 
@@ -16,7 +17,7 @@ import Translate from './transformations/translate';
 export default class State {
     constructor(public postProcessor: PostProcessor) {}
 
-    public resolution: number = 0.01
+    public resolution: number = 0.1
     public tool: number | undefined
     public units: Unit | undefined
     public feedRate: number | undefined
@@ -238,6 +239,7 @@ export default class State {
     }
 
     hasTransformation(transformationType: Transformation) {
+        // @ts-ignore
         return this.transformations.filter(t => t instanceof transformationType)
             .length > 0
     }
@@ -316,7 +318,11 @@ export default class State {
             }
         }
         const coords = ellipse.getCoords(points)
-        const gcodes = coords.map(coord => this.postProcessor.cut(sumCoords(this.lastCoord, coord)))
+        const gcodes = coords.map(coord => {
+            const absCoord = sumCoords(this.lastCoord, coord)
+            const cleanedCoord = this.removeRedundantCoords(absCoord)
+            return this.postProcessor.cut(cleanedCoord === null ? absCoord : cleanedCoord)
+        })
         this.writeBatch(gcodes)
         const absCoord = sumCoords(this.lastCoord, coords[coords.length - 1])
         this.shapes.push(ellipse.getCurveForInCoord(this.lastCoord))

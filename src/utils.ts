@@ -17,6 +17,21 @@ export function sumCoords(coord1: Coordinate, coord2: Coordinate): Coordinate {
     return newCoord
 }
 
+export function subCoords(coord1: Coordinate, coord2: Coordinate): Coordinate {
+    const newCoord: Coordinate = {}
+    axes.forEach((axis: string) => {
+      const coord1AxisValue = coord1[axis]
+      const coord2AxisValue = coord2[axis]
+      if (coord1AxisValue !== undefined) {
+          newCoord[axis] = coord1AxisValue
+      }
+      if (coord1AxisValue !== undefined && coord2AxisValue !== undefined) {
+        newCoord[axis] = coord1AxisValue - coord2AxisValue
+      }
+    })
+    return newCoord
+}
+
 export function toRadians(angle: number) {
     return angle * (Math.PI / 180);
 }

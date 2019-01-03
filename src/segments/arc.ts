@@ -53,9 +53,11 @@ export default class Arc {
 
     getCurveForInCoord(inCoord: Coordinate) {
         const firstCoord = this.curve.getPoint(0)
-        const mirror = mirrorCoord(firstCoord)
-        this.curve.aX = inCoord.x + mirror.x
-        this.curve.aY = inCoord.y + mirror.y
+        const mirror = mirrorCoord({ x: firstCoord.x, y: firstCoord.y })
+        this.curve.aX = inCoord.x! + mirror.x!
+        this.curve.aY = inCoord.y! + mirror.y!
+        // @ts-ignore
+        this.curve.startZ = inCoord.z
         return this.curve
     }
 }

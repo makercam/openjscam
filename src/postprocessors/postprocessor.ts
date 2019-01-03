@@ -1,6 +1,5 @@
 import { Unit } from '../constants'
 import Coordinate from '../coordinate'
-import Arc from '../segments/arc'
 
 export default interface PostProcessor {
     dwell(duration: number): string

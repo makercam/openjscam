@@ -12,8 +12,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^10.12.12",
-    "@types/three": "^0.93.11",
+    "@types/node": "^10.12.18",
+    "@types/three": "^0.93.15",
     "browserify": "^16.2.3",
     "parcel-bundler": "^1.11.0",
     "tap": "^12.1.0",

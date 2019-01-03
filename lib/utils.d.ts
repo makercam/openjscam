@@ -1,6 +1,7 @@
 import Coordinate from './coordinate';
 export declare const axes: string[];
 export declare function sumCoords(coord1: Coordinate, coord2: Coordinate): Coordinate;
+export declare function subCoords(coord1: Coordinate, coord2: Coordinate): Coordinate;
 export declare function toRadians(angle: number): number;
 export declare function toDegrees(radians: number): number;
 export declare function findCoordOnCircle(radius: number, angle: number, offset: Coordinate): Coordinate;
