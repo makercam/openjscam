@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.openjscam = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.METRIC = 'METRIC';
@@ -324,6 +324,7 @@ class State {
         this.feedRate = undefined;
         this.speed = undefined;
         this.lastCoord = { x: 0, y: 0, z: 0 };
+        this.lastUntransformedCoord = { x: 0, y: 0, z: 0 };
         this.transformations = [];
         this.gcode = [];
     }
@@ -429,7 +430,7 @@ class State {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut');
         }
-        const fullCoord = this.fillCoordWithLastCoord(coordinate);
+        const fullCoord = this.fillCoordWithLastUntransformedCoord(coordinate);
         const transformedCoord = utils_1.roundCoord(this.applyTransformations(fullCoord), 10000);
         const cleanedCoord = this.removeRedundantCoords(transformedCoord);
         if (cleanedCoord === null)
@@ -454,11 +455,11 @@ class State {
         this.updateLastCoord(transformedEndCoord);
         this.updateLastUntransformedCoord(utils_1.sumCoords(this.lastUntransformedCoord, fullOffset));
     }
-    fillCoordWithLastCoord(coordinate) {
+    fillCoordWithLastUntransformedCoord(coordinate) {
         return {
-            x: coordinate.x === undefined ? this.lastCoord.x : coordinate.x,
-            y: coordinate.y === undefined ? this.lastCoord.y : coordinate.y,
-            z: coordinate.z === undefined ? this.lastCoord.z : coordinate.z
+            x: coordinate.x === undefined ? this.lastUntransformedCoord.x : coordinate.x,
+            y: coordinate.y === undefined ? this.lastUntransformedCoord.y : coordinate.y,
+            z: coordinate.z === undefined ? this.lastUntransformedCoord.z : coordinate.z
         };
     }
     fillCoordWithZeros(coordinate) {
@@ -469,7 +470,7 @@ class State {
         };
     }
     rapid(coordinate) {
-        const fullCoord = this.fillCoordWithLastCoord(coordinate);
+        const fullCoord = this.fillCoordWithLastUntransformedCoord(coordinate);
         const transformedCoord = utils_1.roundCoord(this.applyTransformations(fullCoord), 10000);
         const cleanedCoord = this.removeRedundantCoords(transformedCoord);
         if (cleanedCoord === null)
@@ -584,21 +585,33 @@ class State {
         this.transformations.unshift(transformation);
         cb();
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord;
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        };
     }
     scale(scales, cb = () => { }) {
         const transformation = new scale_1.default(typeof scales === 'number' ? { x: scales, y: scales, z: scales } : scales);
         this.transformations.unshift(transformation);
         cb();
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord;
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        };
     }
     translate(offset, cb = () => { }) {
         const transformation = new translate_1.default(offset);
         this.transformations.unshift(transformation);
         cb();
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord;
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        };
     }
     write(command) {
         // helpfull for debugging
@@ -49620,4 +49633,5 @@ Object.defineProperties( THREE.OrbitControls.prototype, {
 
 } );
 
-},{}]},{},[2]);
+},{}]},{},[2])(2)
+});

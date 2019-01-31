@@ -1,12 +1,12 @@
 {
   "name": "@makercam/openjscam",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
     "start": "tsc -w",
-    "build": "rm -rf lib && (tsc || exit 0) && browserify lib/index.js > bundle.js"
+    "build": "rm -rf lib && (tsc || exit 0) && browserify --standalone openjscam lib/index.js > bundle.js"
   },
   "keywords": [],
   "author": "",

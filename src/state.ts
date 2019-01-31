@@ -34,6 +34,7 @@ export default class State {
         this.feedRate = undefined
         this.speed = undefined
         this.lastCoord = { x: 0, y: 0, z: 0 }
+        this.lastUntransformedCoord = { x: 0, y: 0, z: 0 }
         this.transformations = []
         this.gcode = []
     }
@@ -154,7 +155,7 @@ export default class State {
         if (!this.feedRate) {
             throw new Error('No feedrate given, please call `feed()` before cut')
         }
-        const fullCoord = this.fillCoordWithLastCoord(coordinate)
+        const fullCoord = this.fillCoordWithLastUntransformedCoord(coordinate)
         const transformedCoord = roundCoord(this.applyTransformations(fullCoord), 10000)
         const cleanedCoord = this.removeRedundantCoords(transformedCoord)
         if (cleanedCoord === null) return
@@ -185,11 +186,11 @@ export default class State {
         this.updateLastUntransformedCoord(sumCoords(this.lastUntransformedCoord, fullOffset))
     }
 
-    fillCoordWithLastCoord(coordinate: Coordinate) {
+    fillCoordWithLastUntransformedCoord(coordinate: Coordinate) {
         return {
-            x: coordinate.x === undefined ? this.lastCoord.x : coordinate.x,
-            y: coordinate.y === undefined ? this.lastCoord.y : coordinate.y,
-            z: coordinate.z === undefined ? this.lastCoord.z : coordinate.z
+            x: coordinate.x === undefined ? this.lastUntransformedCoord.x : coordinate.x,
+            y: coordinate.y === undefined ? this.lastUntransformedCoord.y : coordinate.y,
+            z: coordinate.z === undefined ? this.lastUntransformedCoord.z : coordinate.z
         }
     }
 
@@ -202,7 +203,7 @@ export default class State {
     }
 
     rapid(coordinate: Coordinate) {
-        const fullCoord = this.fillCoordWithLastCoord(coordinate)
+        const fullCoord = this.fillCoordWithLastUntransformedCoord(coordinate)
         const transformedCoord = roundCoord(this.applyTransformations(fullCoord), 10000)
         const cleanedCoord = this.removeRedundantCoords(transformedCoord)
         if (cleanedCoord === null) return
@@ -334,7 +335,11 @@ export default class State {
         this.transformations.unshift(transformation)
         cb()
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        }
     }
 
     scale(scales: Coordinate | number, cb = () => {}) {
@@ -342,7 +347,11 @@ export default class State {
         this.transformations.unshift(transformation)
         cb()
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        }
     }
 
     translate(offset: Coordinate, cb = () => {}) {
@@ -350,7 +359,11 @@ export default class State {
         this.transformations.unshift(transformation)
         cb()
         this.transformations.splice(this.transformations.indexOf(transformation), 1);
-        this.lastUntransformedCoord = this.lastCoord
+        this.lastUntransformedCoord = {
+            x: this.lastCoord.x,
+            y: this.lastCoord.y,
+            z: this.lastCoord.z,
+        }
     }
 
     write(command: string) {

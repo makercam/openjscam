@@ -30,7 +30,7 @@ export default class State {
     setSpeed(speed: number): void;
     cut(coordinate: Coordinate): void;
     icut(offset: Coordinate): void;
-    fillCoordWithLastCoord(coordinate: Coordinate): {
+    fillCoordWithLastUntransformedCoord(coordinate: Coordinate): {
         x: number | undefined;
         y: number | undefined;
         z: number | undefined;
